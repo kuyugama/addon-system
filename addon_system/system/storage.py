@@ -40,6 +40,7 @@ class AddonSystemStorage(metaclass=FirstParamSingletonSingleton):
 
         if stored_addon is not None and (
             enabled is None
+            and (dependency_check_time is None and dependency_check_result is None)
             and stored_addon.last_dependency_check_time > addon.update_time
         ):
             return
