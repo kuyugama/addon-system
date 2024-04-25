@@ -197,4 +197,12 @@ class AddonSystem(metaclass=FirstParamSingletonSingleton):
         """Install addon dependencies and return installed libraries"""
         addon = self.get_addon(addon)
 
-        return self._lib_manager.install_libraries(addon.metadata.depends)
+        timestamp = time.time()
+        installed = self._lib_manager.install_libraries(addon.metadata.depends)
+
+        # Update caches
+        self._storage.save_addon(
+            addon, dependency_check_result=True, dependency_check_time=timestamp
+        )
+
+        return installed
