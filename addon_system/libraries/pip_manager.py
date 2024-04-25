@@ -32,6 +32,9 @@ class PipLibManager(BaseLibManager):
     def install_libraries(self, libraries: Sequence[str]) -> tuple[str]:
         libraries: list[str] = list(libraries)
 
+        if self._installed_libraries is None:
+            self.get_installed_libraries()
+
         # Check validness of input names and drop already installed libraries(if exists)
         for lib in libraries.copy():
             if "==" not in lib:
