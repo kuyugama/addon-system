@@ -161,11 +161,11 @@ class Addon(metaclass=FirstParamSingletonSingleton):
 
         if self._system:
             # Install dependencies using system and save installed libraries to system's library manager
-            self._system.satisfy_dependencies(self)
+            return self._system.satisfy_dependencies(self)
 
         if lib_manager:
             # Install dependencies with user provided library manager
-            lib_manager.install_libraries(self.metadata.depends)
+            return lib_manager.install_libraries(self.metadata.depends)
 
     def set_enabled(self, enabled: bool):
         """
