@@ -12,6 +12,7 @@ setup(
         "addon_system.system",
         "addon_system.libraries",
     ],
+    scripts=["addon.py"],
     url="https://github.com/kuyugama/addon-system",
     license="GNU GPVv3",
     author="KuyuGama",
