@@ -1,0 +1,7 @@
+.idea
+dist
+venv
+__pycache__
+addons
+test.py
+

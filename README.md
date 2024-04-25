@@ -1,0 +1,380 @@
+# # _Addon System_
+
+## What is it?
+
+> This is super useful(or useless. Depends on your mood) thing ever!
+
+This is library that allows you
+to manage "addons" in your project.
+
+> You want to install only one library?
+> **Just do it!**
+>
+>It has no third-party dependencies!
+
+## What is addon?
+
+> Very useful thing!
+
+Addon is a mini-project(usually independent)
+that provides interface for your main project
+and can be used as a part of it.
+
+Addon is a directory that contains at least two files:
+
+- Addon metafile
+- Addon main module
+
+### Addon metafile
+
+Is a JSON formatted file. That consists of these values:
+
+- id - `string`. Addons must have unique id. Usually
+  consists of your username and addon name: `KuyuGama/SomeAddon`
+- name - `string`. Name of addon.
+  Can be used for frontend display
+- module - `string`. Main module of addon
+- authors - `array[string]`. Author names
+  of addon
+- version - [optional] `string`. Version of addon(usually SemVer)
+- description - [optional]`string`. Description of addon.
+  Can be used on frontend
+- depends - [optional]`array[string]`. Addon dependencies. Format is library==version
+  (such as pip). If you are using your own
+  library managing class you can change
+  string format to yours.
+
+### Addon module
+
+Is a standard python module! Only exception is
+an interface that will use your main code of project.
+
+> I've been inspired by a plugins
+> for Minecraft servers cores such as a
+> [Paper](https://papermc.io) to create this library!
+
+## What is addon for?
+
+> Speed or convenience? I choose both!
+
+Addon is runtime extension of your project.
+You can write update for your application
+and don't care about downtime
+(it will not be there!).
+
+Or you can use addons just for creating
+extensible projects. For example telegram bots,
+you can add some functionality with
+no need to edit main code of the bot. Just
+connect the addon!
+
+## Dependencies?
+
+> Where is aiogram gone?
+
+This library has built-in tool for
+managing addon's dependencies.
+So you don't even need to use
+command-line to install it using AddonSystem.
+
+## Let's try?
+
+> LET'S GOO!
+
+### Prerequisites
+
+- Install `addon-system`
+
+```bash
+pip install addon-system
+```
+
+- Create addons storage directory, it can have any name and be anywhere inside your project workdir(of course!)
+
+Example:
+
+```
+┌─ KuyuGenesis -- Workdir
+└──┌─ addons -- here you go
+   ├─ src
+   ├─ main.py
+   ├─ config.py
+   └─ KuyuGenesis.conf
+```
+
+### Create your first addon
+
+Here is two ways to achieve it
+
+- Using library-provided addon creation
+  command line tool:
+
+```bash
+python -m addon --name="SomeAddon" --authors="KuyuGama,Anon" --id="username/SomeAddon" --module="__init__.py" addons/ 
+```
+
+- Manually(meh) create addon dir and metafile:
+
+```
+┌─ SomeAddon -- AddonDir (CamelCase)
+└──┌─ addon.json -- metafile
+   └─ __init__.py -- module set in metafile(can be any python file)
+```
+
+So you now have this project structure:
+
+```
+┌─ KuyuGenesis -- Workdir
+└──┌─ addons -- here you go
+   ├──┌─ addon.json -- metafile
+   │  └ __init__.py -- module set in metafile
+   ├─ src
+   ├─ main.py
+   ├─ config.py
+   └─ KuyuGenesis.conf
+```
+
+### Initialize the system
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+```
+
+Here we created instance of the AddonSystem
+with early created addons root directory
+and `pip` library manager.
+If you use another library manging tool -
+just write your own implementation of
+library manager that uses it(only 3 methods!).
+
+### Querying addons
+
+> Search of addons? YES!
+
+For your needs you can easily
+search for the addons(not in the internet! Yet?)
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+for addon in system.query_addons(name="some", case_insensitivity=True):
+    print(addon)
+```
+
+Here we queried for addon by its name case-insensitive.
+You can query addons by other fields also.
+Here are all query parameters:
+
+- author - author name
+- name - addon name
+- description - description
+- enabled - addon status(about this later)
+- case_insensitivity - case-insensitive querying
+
+### Getting a specific addon
+
+As I wrote above:
+> Addon's must have unique id
+
+So, if you want to get some exact addon - use its id!
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+print(addon)
+```
+
+### Dependencies!
+
+To manage dependencies you have to use the simple
+interface:
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+
+print(addon.metadata.depends)
+print("Is dependencies satisfied?", system.check_dependencies(addon))
+if not system.check_dependencies(addon):
+    system.satisfy_dependencies(addon)
+    print("Auto-installed dependencies")
+...
+```
+
+Here we checked dependencies of addon and
+install it if necessarily
+
+> `check_dependencies` and `satisfy_dependencies`
+> also can take addon id to manage
+>
+> Thanks to caching we can call `check_dependencies`
+> twice without losing much time
+
+### Addon status
+
+> Another useful(or useless, according to your purposes) think!
+
+Addon status allows the code know whether to
+load addon into your project
+
+Usage:
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+
+if not system.get_addon_enabled(addon):
+    system.enable_addon("KuyuGama/SomeAddon")
+else:
+    system.disable_addon("KuyuGama/SomeAddon")
+
+for addon in system.query_addons(enabled=True):
+    print("Enabled addon:", addon)
+```
+
+> To remove confusion:
+>
+> `get_addon_enabled`, `enable_addon` and `disable_addon` all
+> can take id or instance of addon
+
+### Importing addon
+
+> Much more interesting, isn't it?
+
+You can import or reload module of addon
+where and when you want:
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+
+module = addon.module()
+
+# Example module interface
+event_handlers = {}
+
+module.unpack_handlers(event_handlers)
+```
+
+> Note, addon can't be imported without satisfied dependencies.
+> If dependencies is not satisfied exception will be raised
+
+> Interface of addon module is your own designed
+> interface for your purposes.
+>
+> Because module is regular python module you can  
+> create whatever you want
+
+Reload of module is achieved by using the same function with `relaod=True` argument:
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+
+module = addon.module(reload=True)
+```
+
+--------------------------------
+
+## Addon interface
+
+> Independent addon? Huh
+
+Addons are semi-independent components of AddonSystem.
+
+This means you can use addons without AddonSystem(but with some limitations, of course)
+
+Here is the full list of methods and properties of semi-independent component Addon:
+
+1. Properties:
+    - `metadata` - Metadata class contains all the metadata of addon
+    - `path` - Path to addon
+    - `update_time` - last update time of addon(retrieved from operating system)
+    - `module_path` - path to addon's module
+    - `module_import_path` - path that passed into `importlib.import_module` to import module of addon
+    - `system` - installed AddonSystem for this addon(not for independent usage)
+    - `enabled` - addon status shortcut(not for independent usage)
+2. Methods:
+    - `install_system(system: AddonSystem)`
+        - system - AddonSystem to install
+
+      Install AddonSystem to this addon(usually used by AddonSystem)
+    - `module(lib_manager: BaseLibManager = None, reload: bool = False)`
+        - lib_manager - Library manager, used to check
+          dependencies before import of module.
+          You must pass it if you use addon as independent object
+        - reload - Pass True if you want to reload module(uses `importlib.reload`)
+
+      Import the Addon module
+    - `storage()`
+
+      Get the addon key-value storage.
+      Use it if your addon has data to store
+
+    - `check_dependencies(lib_manager: BaseLibManager = None)`
+        - lib_manager - Library manager, used to check
+          dependencies before import of module. You must pass it if you use addon as independent object
+
+      Check addon dependencies
+    - `satisfy_dependencies(lib_manager: BaseLibManager = None)`
+        - lib_manager - Library manage, used to install libraries.
+          You must pass it if you use the addon as the independent component
+
+      Install dependencies of this addon
+    - `set_enabled(enabled: bool)`
+        - enabled - status of addon
+
+      Get the addon status(not for independent usage)
+    - `enable()`
+      Enable addon(not for independent usage)
+    - `disable()`
+      Disable addon(not for independent usage)
+
+# Thanks for using!
