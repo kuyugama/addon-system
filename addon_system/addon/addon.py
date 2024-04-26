@@ -2,6 +2,7 @@ import importlib
 import os
 import string
 from pathlib import Path
+from typing import Union
 
 from addon_system import utils
 from addon_system.addon.meta import AddonMeta
@@ -93,8 +94,13 @@ class Addon(metaclass=FirstParamSingletonSingleton):
 
     @property
     def update_time(self) -> float:
-        """Last addon update timestamp"""
-        return os.path.getmtime(self._path)
+        """
+        Addon update time.
+        Return max of directory update time and metafile update time,
+        sometimes directories does not flushed
+        when updating files within it
+        """
+        return max(os.path.getmtime(self._path), self.metadata.update_time)
 
     @property
     def module_path(self) -> Path:
@@ -200,6 +206,17 @@ class Addon(metaclass=FirstParamSingletonSingleton):
 
         """
         self.set_enabled(False)
+
+    def __eq__(self, other: Union[str, "Addon"]) -> bool:
+        if isinstance(other, str):
+            return self.metadata.id == other
+        elif isinstance(other, Addon):
+            return self is other or self.metadata.id == other.metadata.id
+        else:
+            return False
+
+    def __hash__(self) -> int:
+        return hash(self._path)
 
     def __str__(self):
         return f"Addon<{self.metadata.id}>(name={self.metadata.name!r}, path={str(self._path)!r})"
