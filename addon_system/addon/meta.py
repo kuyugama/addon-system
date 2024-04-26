@@ -1,3 +1,4 @@
+import os.path
 from json import load, dump
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,11 @@ class AddonMeta:
         self._path = path
         self._data = {}
         self.read()
+
+    @property
+    def update_time(self) -> float:
+        """Addon metafile update time"""
+        return os.path.getmtime(self._path)
 
     def _required_fields(self, required_fields: list[str], content: dict[str, Any]):
         for field in required_fields:
@@ -102,6 +108,9 @@ class AddonMeta:
         return self._data[item]
 
     __getitem__ = __getattr__
+
+    def __hash__(self):
+        return hash(self.id)
 
     def __str__(self):
         return (
