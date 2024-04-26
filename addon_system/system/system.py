@@ -30,14 +30,6 @@ class AddonSystem(metaclass=FirstParamSingletonSingleton):
     def root(self):
         return self._root
 
-    def __hash__(self):
-        return hash(self._root)
-
-    def __eq__(self, other: "AddonSystem") -> bool:
-        if isinstance(other, AddonSystem):
-            return self._root == other._root
-        return False
-
     def iter_filesystem_addons(self) -> Union[Generator[Addon, None, None], NoReturn]:
         """Iter in root dir for addons"""
         from addon_system.system.storage import AddonSystemStorage
@@ -133,17 +125,17 @@ class AddonSystem(metaclass=FirstParamSingletonSingleton):
             ):
                 yield addon
 
-    def get_addon_enabled(self, addon: str | Addon) -> bool:
-        """Get value of 'enabled' of addon"""
-        addon = self.get_addon(addon)
-
-        return self._storage.get_addon(addon.metadata.id).enabled
-
     def set_addon_enabled(self, addon: str | Addon, enabled: bool):
         """Set value of 'enabled' for addon"""
         addon = self.get_addon(addon)
 
         self._storage.save_addon(addon, enabled)
+
+    def get_addon_enabled(self, addon: str | Addon) -> bool:
+        """Get value of 'enabled' of addon"""
+        addon = self.get_addon(addon)
+
+        return self._storage.get_addon(addon.metadata.id).enabled
 
     def enable_addon(self, addon: str | Addon):
         """Enable addon.
@@ -206,3 +198,11 @@ class AddonSystem(metaclass=FirstParamSingletonSingleton):
         )
 
         return installed
+
+    def __hash__(self):
+        return hash(self._root)
+
+    def __eq__(self, other: "AddonSystem") -> bool:
+        if isinstance(other, AddonSystem):
+            return self._root == other._root
+        return False
