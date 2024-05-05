@@ -126,8 +126,9 @@ So you now have this project structure:
 ```
 ┌─ KuyuGenesis -- Workdir
 └──┌─ addons -- here you go
-   ├──┌─ addon.json -- metafile
-   │  └ __init__.py -- module set in metafile
+   ├──┌─ SomeAddon
+   │   └─┌─ addon.json -- metafile
+   │     └─ __init__.py -- module set in metafile
    ├─ src
    ├─ main.py
    ├─ config.py
