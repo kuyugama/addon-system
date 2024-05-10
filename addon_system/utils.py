@@ -1,8 +1,11 @@
+import builtins
 import importlib
+import inspect
 import sys
 import types
+from contextlib import contextmanager
 from pathlib import Path, PosixPath
-from typing import TypeVar, ClassVar, Type
+from typing import TypeVar, ClassVar, Type, cast
 
 T = TypeVar("T")
 C = ClassVar["C"]
@@ -134,3 +137,63 @@ def check_version(
             return False
 
     return True
+
+
+@contextmanager
+def replace_builtins(**names):
+    """
+    Replace builtins and cleanup changes
+    :param names: builtins to be replaced
+    """
+
+    old_values = {}
+    names_to_remove = []
+
+    for name, value in names.items():
+        if hasattr(builtins, name):
+            old_values[name] = getattr(builtins, name)
+        else:
+            names_to_remove.append(name)
+
+        setattr(builtins, name, value)
+
+    try:
+        yield
+
+    finally:
+        for name, value in old_values.items():
+            setattr(builtins, name, value)
+
+        for name in names_to_remove:
+            delattr(builtins, name)
+
+
+def resolve_runtime(cls: type[T], name: str = None) -> T:
+    """
+    Helper function for addon modules. Resolves name from builtins
+
+    :param cls: Type of the variable to be resolved
+    :param name: Name of the builtin variable (can be automatically set by the code context)
+    """
+    called_from = inspect.stack()[1]
+
+    if called_from.function != "<module>":
+        raise RuntimeError(
+            "resolve_runtime can be called only at module level. Not in a function"
+        )
+
+    if name is None:
+        # Get name of the variable
+        name = called_from.code_context[-1].split("=", 1)[0].strip()
+
+    if not hasattr(builtins, name):
+        raise NameError(f'Requested "{name}" is not provided by addon loader')
+
+    value = getattr(builtins, name)
+
+    if not isinstance(value, cls):
+        raise TypeError(
+            f'Name "{name}" contains {type(value)}, but requested type is {cls}'
+        )
+
+    return cast(cls, value)

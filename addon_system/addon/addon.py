@@ -1,11 +1,11 @@
 import importlib
 import os
 import string
+import types
 from pathlib import Path
-from typing import Union
+from typing import Union, Any, TypeVar
 
 from addon_system import utils
-from addon_system.addon.meta import AddonMeta
 from addon_system.errors import (
     AddonInvalid,
     AddonSystemException,
@@ -13,6 +13,11 @@ from addon_system.errors import (
 )
 from addon_system.libraries.base_manager import BaseLibManager
 from addon_system.utils import FirstParamSingletonSingleton
+from .interface import ModuleInterface, unload_module
+from .meta import AddonMeta
+
+
+ModuleInterfaceType = TypeVar("ModuleInterfaceType", bound="ModuleInterface")
 
 
 class Addon(metaclass=FirstParamSingletonSingleton):
@@ -52,7 +57,8 @@ class Addon(metaclass=FirstParamSingletonSingleton):
         self._path = path
         self._meta = meta
 
-        self._module = None
+        self._module: types.ModuleType | None = None
+        self._interface: ModuleInterface | None = None
 
         self._storage: AddonStorage | None = None
         self._system: AddonSystem | None = None
@@ -111,10 +117,35 @@ class Addon(metaclass=FirstParamSingletonSingleton):
         path = self.module_path
         if path.name.endswith(".py"):
             path = path.parent / path.name[:-3]
+
+        if path.name == "__init__":
+            path = path.parent
+
         return utils.get_module_import_path(path)
 
-    def module(self, lib_manager: BaseLibManager = None, reload: bool = False):
-        """Import addon's main module or reload it. Requires dependencies to be satisfied"""
+    def _import(self, reload: bool = False):
+        """Import or reloads addon's module"""
+        if reload and self._module:
+            return utils.recursive_reload_module(self._module)
+
+        return importlib.import_module(self.module_import_path)
+
+    def module(
+        self,
+        lib_manager: BaseLibManager = None,
+        reload: bool = False,
+        replace_names: dict[str, Any] = None,
+    ):
+        """
+        Import addon's main module or reload it. Requires dependencies to be satisfied
+
+        :param lib_manager: library manager (dependencies check)
+        :param reload: module will be reloaded if True
+        :param replace_names: replace built-in names
+                when module imports. Don't recommend if module
+                contains blocking code(``time.sleep(...)``, etc.), and you use threading.
+                Also sets this names as attributes to module instance
+        """
 
         if self._module and not reload:
             return self._module
@@ -122,12 +153,65 @@ class Addon(metaclass=FirstParamSingletonSingleton):
         if not self.check_dependencies(lib_manager):
             raise AddonImportError("Addon dependencies is not satisfied")
 
-        if reload:
-            return utils.recursive_reload_module(self._module)
+        if replace_names is not None and isinstance(replace_names, dict):
+            with utils.replace_builtins(**replace_names):
+                module = self._import(reload=reload)
+            for name, value in replace_names.items():
+                setattr(module, name, value)
+        else:
+            module = self._import(reload=reload)
 
-        self._module = importlib.import_module(self.module_import_path)
+        self._module = module
 
         return self._module
+
+    def interface(
+        self, cls: type[ModuleInterfaceType], *load_args, **load_kwargs
+    ) -> ModuleInterfaceType:
+        """
+        Creates ModuleInterface for this addon
+
+        Use addon.module() first if this addon created without AddonSystem,
+        or you need to set values that can be accessed on module evaluation
+
+        **Note**: Only one interface can be set to the addon!
+        Other attempts will return already set interface
+
+        :param cls: ModuleInterface subclass
+        :param load_args: positional arguments that will be passed to on_load module method
+        :param load_kwargs: keyword arguments that will be passed to on_load module method
+
+        :return: module interface instance
+        """
+        if not issubclass(cls, ModuleInterface):
+            raise TypeError(f"Invalid ModuleInterface type provided: {cls}")
+
+        if self._interface is not None:
+            return self._interface
+
+        self._interface = cls(self, *load_args, **load_kwargs)
+
+        return self._interface
+
+    def unload_interface(self, *args, **kwargs):
+        """
+        Tries to unload interface
+
+        All arguments will be passed to on_unload module method
+        """
+        if self._interface is None:
+            return
+
+        self._interface.unload(*args, **kwargs)
+        self._interface = None
+
+    def unload_module(self):
+        """Tries to unload module"""
+        if self._module is None:
+            return
+
+        unload_module(self._module)
+        self._module = None
 
     def storage(self):
         """Get addon's key-value storage"""

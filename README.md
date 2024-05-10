@@ -1,5 +1,9 @@
 # # _Addon System_
 
+> This is a fully rewritten RelativeAddonsSystem
+> [\[PyPi\]](https://pypi.org/project/relative-addons-system)
+> [\[GitHub\]](https://github.com/KuyuGama/RelativeAddonsSystem)
+
 ## What is it?
 
 > This is super useful(or useless. Depends on your mood) thing ever!
@@ -125,10 +129,10 @@ So you now have this project structure:
 
 ```
 ┌─ KuyuGenesis -- Workdir
-└──┌─ addons -- here you go
-   ├──┌─ SomeAddon
-   │   └─┌─ addon.json -- metafile
-   │     └─ __init__.py -- module set in metafile
+└──┌─ addons 
+   ├──┌─ SomeAddon -- Addon's directory
+   │  └─┌─ addon.json -- metafile
+   │    └─ __init__.py -- module set in metafile
    ├─ src
    ├─ main.py
    ├─ config.py
@@ -322,6 +326,147 @@ addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 module = addon.module(reload=True)
 ```
 
+### Value injection
+
+> **NOTE**! That is not safe in case of usage ``threading``! Because it replaces builtins
+> (Only for import time)
+>
+> Why builtins? Because it will work as it is(without any function calls in addon's module)
+
+You can inject values on module initiation, and use it after(will work only for module that set into metafile)
+
+Injection example:
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+
+# "this" name will contain addon instance in addon's module
+module = addon.module(replace_names=dict(this=addon))
+```
+
+It creates problem - IDEs doesn't know that I injected name "this".
+
+Let's solve this!
+
+```python
+from addon_system import resolve_runtime, Addon
+
+this = resolve_runtime(Addon)
+
+print("Addon module received \"this\" variable with value:", this)
+```
+
+> Note:
+> 1. ``resolve_runtime`` also checks requested type with
+     > provided value type and will raise TypeError if it is not the same
+> 2. ``resolve_runtime`` automatically resolves the name of
+     > required variable, but you can also pass it manually, by parameter ``name``
+> 3. ``resolve_runtime`` is a hack on ``builtins`` and it can be used
+     > in all child modules and will return the same value
+
+### Module Interface
+
+> Wait, what? My IDE now suggests me methods that I could call!
+
+How this works: you create class-representation of the module -
+library instantiates it with addon and allows you to use it anywhere.
+
+Simple example:
+
+```python
+from pathlib import Path
+from typing import Any
+
+from addon_system import AddonSystem, ModuleInterface
+from addon_system.libraries.pip_manager import PipLibManager
+
+
+class MyInterface(ModuleInterface):
+    def get_supported_events(self) -> list[str]:
+        """Returns supported events by this addon"""
+        return self._get_func("get_supported_events")()
+
+    def propagate_event(self, event_name: str, event_data: dict[str, Any]) -> bool:
+        """Propagates event to this addon, and return True if handled"""
+        handler = self._get_func("on_" + event_name)
+
+        if handler is None:
+            return False
+
+        return handler(event_data)
+
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+
+# Value injection must be accomplished before interface creation
+addon.module(replace_names=dict(this=addon))
+
+interface = addon.interface(
+    MyInterface,
+    "supported on_load positional argument",
+    kwd="supported on_load keyword argument",
+)
+
+if "smth" in interface.get_supported_events():
+    interface.propagate_event("smth", dict(issued_by="User"))
+```
+
+### Module unloading
+
+> Free my memory, please
+
+Library can try to unload addon's modules
+
+> **Note**: It works better in a pair of ModuleInterface
+
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem, ModuleInterface
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+
+module = addon.module()
+
+# To unload module => we must remove all references to it
+# (and then python's garbage collector will release used memory by it)
+del module
+addon.unload_module()
+
+# In case of usage ModuleInterface it will try to unload 
+# all used modules by this addon(addon's module must return 
+# list of the modules in on_load method)
+interface = addon.interface(ModuleInterface)
+
+# Will try to unload all used modules by its addon
+interface.unload("Argument passed to on_unload module method")
+## Or
+# addon.unload_interface("Argument passed to on_unload module method")
+## if you don't have access to interface instance
+```
+
+> **NOTE**!!! Unload may not work in case if module is used anywhere else.
+> If you use interface - use it instance instead of the addon's module
+>
+> Also: to unload used modules => you need to
+> return a list of these modules from on_load module method
+> (it will be called automatically by ``ModuleInterface`` class)
+
 --------------------------------
 
 ## Addon interface
@@ -347,13 +492,29 @@ Here is the full list of methods and properties of semi-independent component Ad
         - system - AddonSystem to install
 
       Install AddonSystem to this addon(usually used by AddonSystem)
-    - `module(lib_manager: BaseLibManager = None, reload: bool = False)`
+    - `module(lib_manager: BaseLibManager = None, reload: bool = False, replace_names: dict[str, Any] = None)`
         - lib_manager - Library manager, used to check
           dependencies before import of module.
           You must pass it if you use addon as independent object
         - reload - Pass True if you want to reload module(uses `importlib.reload`)
+        - replace_names - values injection to module
 
       Import the Addon module
+    - `interface(cls: type[ModuleInterface], *args, **kwargs)`
+        - cls - subclass of ModuleInterface that will be instantiated
+        - *args, **kwargs - will be passed to ``on_load`` method of the module
+
+      Creates ModuleInterface instance, that can be used to access module
+      variables with IDEs suggestions
+    - `unload_interface()`
+        - *args, **kwargs - will be passed to ``on_unload`` method of the addon
+
+      Tries to unload module interface
+
+    - `unload_module()`
+
+      Tries to unload module
+
     - `storage()`
 
       Get the addon key-value storage.
