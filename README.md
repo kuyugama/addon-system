@@ -366,11 +366,11 @@ print("Addon module received \"this\" variable with value:", this)
 
 > Note:
 > 1. ``resolve_runtime`` also checks requested type with
-     > provided value type and will raise TypeError if it is not the same
+> provided value type and will raise TypeError if it is not the same
 > 2. ``resolve_runtime`` automatically resolves the name of
-     > required variable, but you can also pass it manually, by parameter ``name``
+> required variable, but you can also pass it manually, by parameter ``name``
 > 3. ``resolve_runtime`` is a hack on ``builtins`` and it can be used
-     > in all child modules and will return the same value
+> in all child modules and will return the same value
 
 ### Module Interface
 
