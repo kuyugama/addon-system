@@ -310,7 +310,7 @@ module.unpack_handlers(event_handlers)
 > Because module is regular python module you can  
 > create whatever you want
 
-Reload of module is achieved by using the same function with `relaod=True` argument:
+Reload of module is achieved by using the same function with `reload=True` argument:
 
 ```python
 from pathlib import Path
