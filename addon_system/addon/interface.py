@@ -1,6 +1,7 @@
 import inspect
 import sys
 import types
+import warnings
 from collections.abc import Sequence
 from typing import Any
 
@@ -205,3 +206,10 @@ class ModuleInterface:
                 continue
 
             addons.remove(self._addon)
+
+    def __del__(self):
+        if self._module is not None:
+            try:
+                self.unload()
+            except RuntimeError as e:
+                warnings.warn(e.args[0])
