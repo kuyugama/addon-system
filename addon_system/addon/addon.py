@@ -12,15 +12,14 @@ from addon_system.errors import (
     AddonImportError,
 )
 from addon_system.libraries.base_manager import BaseLibManager
-from addon_system.utils import FirstParamSingletonSingleton
+from addon_system.utils import FirstParamSingleton
 from .interface import ModuleInterface, unload_module
 from .meta import AddonMeta
-
 
 ModuleInterfaceType = TypeVar("ModuleInterfaceType", bound="ModuleInterface")
 
 
-class Addon(metaclass=FirstParamSingletonSingleton):
+class Addon(FirstParamSingleton):
     """Class-wrapper of addon. Semi-independent part of AddonSystem"""
 
     _by_path: dict[Path, "Addon"] = {}

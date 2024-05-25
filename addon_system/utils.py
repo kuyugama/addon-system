@@ -1,17 +1,18 @@
 import builtins
+import functools
 import importlib
 import inspect
 import sys
 import types
+import warnings
 from contextlib import contextmanager
 from pathlib import Path, PosixPath
-from typing import TypeVar, ClassVar, Type, cast
+from typing import TypeVar, Type, cast
 
 T = TypeVar("T")
-C = ClassVar["C"]
 
 
-class FirstParamSingletonSingleton(type):
+class FirstParamSingletonMeta(type):
     def __call__(cls: Type[T], *args, **kwargs) -> T:
         if not hasattr(cls, "_by_param"):
             setattr(cls, "_by_param", {})
@@ -28,12 +29,14 @@ class FirstParamSingletonSingleton(type):
             if hasattr(instance, "__reinit__"):
                 instance.__reinit__(*args, **kwargs)
         else:
-            instance = super(FirstParamSingletonSingleton, cls).__call__(
-                *args, **kwargs
-            )
+            instance = super(FirstParamSingletonMeta, cls).__call__(*args, **kwargs)
             by_param[param] = instance
 
         return instance
+
+
+class FirstParamSingleton(metaclass=FirstParamSingletonMeta):
+    """Singleton as a normal base class"""
 
 
 root = Path().absolute()
@@ -71,72 +74,32 @@ def recursive_reload_module(
     return importlib.reload(module)
 
 
-def transform_to_library_version(raw_version: str | int | float):
-    if isinstance(raw_version, (int, float)):
-        return str(raw_version)
+def deprecated(msg: str, version: str):
+    """
+    Decorator that marks functions as deprecated
 
-    version = ""
-    for char in raw_version:
-        if char != "*":
-            version += char
-        else:
-            version = version[:-1]
-            break
+    :param msg: Message that will be shown in warning
+    :param version: Deprecated since a version
+    """
 
-    if len(version.split(".")) < 2:
-        version += ".0"
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.simplefilter(
+                "always", DeprecationWarning
+            )  # turn off warning filter
+            warnings.warn(
+                "{} is deprecated since {}: {}".format(func.__name__, version, msg),
+                category=DeprecationWarning,
+                stacklevel=2,
+            )
+            warnings.simplefilter("default", DeprecationWarning)  # reset warning filter
 
-    return version
+            return func(*args, **kwargs)
 
+        return wrapper
 
-def validate_version(version: str | int | float):
-    if isinstance(version, (int, float)):
-        return True
-
-    if not len(version):
-        return False
-
-    if version.startswith("."):
-        return False
-
-    if version.isdigit() or version == "*":
-        return True
-
-    if all(map(lambda x: x != "", version.split("."))):
-        return True
-
-
-def check_version(
-    required_version: str | int | float, library_version: str | int | float
-):
-    if not validate_version(required_version):
-        raise ValueError(
-            "Unsupported required version type: {}".format(required_version)
-        )
-    elif not validate_version(library_version):
-        raise ValueError("Unsupported library version type: {}".format(library_version))
-
-    if isinstance(required_version, (int, float)):
-        required_version = str(required_version)
-
-    if isinstance(library_version, (int, float)):
-        library_version = str(library_version)
-
-    required_version_parted = required_version.split(".")
-    library_version_parted = library_version.split(".")
-
-    if len(required_version_parted) > len(library_version_parted):
-        return False
-
-    for part_req, part_lib in zip(required_version_parted, library_version_parted):
-        if part_req == part_lib:
-            continue
-        elif part_req == "*":
-            return True
-        else:
-            return False
-
-    return True
+    return decorator
 
 
 @contextmanager
@@ -183,7 +146,7 @@ def resolve_runtime(cls: type[T], name: str = None) -> T:
         )
 
     if name is None:
-        # Get name of the variable
+        # Get a name of the variable
         name = called_from.code_context[-1].split("=", 1)[0].strip()
 
     if not hasattr(builtins, name):

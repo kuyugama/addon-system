@@ -1,3 +1,5 @@
+from typing import Any
+
 # # _Addon System_
 
 > This is a fully rewritten RelativeAddonsSystem
@@ -6,9 +8,9 @@
 
 ## What is it?
 
-> This is super useful(or useless. Depends on your mood) thing ever!
+> This is super useful (or useless. Depends on your mood) thing ever!
 
-This is library that allows you
+This is a library that allows you
 to manage "addons" in your project.
 
 > You want to install only one library?
@@ -18,10 +20,10 @@ to manage "addons" in your project.
 
 ## What is addon?
 
-> Very useful thing!
+> Beneficial thing!
 
 Addon is a mini-project(usually independent)
-that provides interface for your main project
+that provides an interface for your main project
 and can be used as a part of it.
 
 Addon is a directory that contains at least two files:
@@ -45,13 +47,14 @@ Is a JSON formatted file. That consists of these values:
   Can be used on frontend
 - depends - [optional]`array[string]`. Addon dependencies. Format is library==version
   (such as pip). If you are using your own
-  library managing class you can change
-  string format to yours.
+  library managing class, you can change
+  a string format to yours.
+- extra - [optional]`object`. Addon extra info. Used to store custom values that can be changed in runtime.
 
 ### Addon module
 
-Is a standard python module! Only exception is
-an interface that will use your main code of project.
+Is a standard python module!
+The only exception is an interface that will use your main code of project.
 
 > I've been inspired by a plugins
 > for Minecraft servers cores such as a
@@ -61,22 +64,22 @@ an interface that will use your main code of project.
 
 > Speed or convenience? I choose both!
 
-Addon is runtime extension of your project.
+Addon is a runtime extension of your project.
 You can write update for your application
 and don't care about downtime
 (it will not be there!).
 
 Or you can use addons just for creating
-extensible projects. For example telegram bots,
+extensible projects. For example, telegram bots,
 you can add some functionality with
-no need to edit main code of the bot. Just
-connect the addon!
+no need to edit the main code of the bot. 
+Connect the addon!
 
 ## Dependencies?
 
 > Where is aiogram gone?
 
-This library has built-in tool for
+This library has a built-in tool for
 managing addon's dependencies.
 So you don't even need to use
 command-line to install it using AddonSystem.
@@ -108,7 +111,7 @@ Example:
 
 ### Create your first addon
 
-Here is two ways to achieve it
+There are two ways to achieve it
 
 - Using library-provided addon creation
   command line tool:
@@ -155,15 +158,14 @@ Here we created instance of the AddonSystem
 with early created addons root directory
 and `pip` library manager.
 If you use another library manging tool -
-just write your own implementation of
-library manager that uses it(only 3 methods!).
+ write your own implementation of
+library manager that uses it (only three methods!).
 
 ### Querying addons
 
 > Search of addons? YES!
 
-For your needs you can easily
-search for the addons(not in the internet! Yet?)
+For your needs, you can search for the addons(not on the internet! Yet?)
 
 ```python
 from pathlib import Path
@@ -182,11 +184,11 @@ Here we queried for addon by its name case-insensitive.
 You can query addons by other fields also.
 Here are all query parameters:
 
-- author - author name
-- name - addon name
-- description - description
-- enabled - addon status(about this later)
-- case_insensitivity - case-insensitive querying
+- author — author name
+- name — addon name
+- description — description
+- enabled — addon status(about this later)
+- case_insensitivity — case-insensitive querying
 
 ### Getting a specific addon
 
@@ -208,9 +210,85 @@ addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 print(addon)
 ```
 
+### Addon details
+
+> What is the use of this addon?
+
+You can get all supported values from metafile using 
+AddonMeta that is always present in addon as "metadata" attribute:
+```python
+from pathlib import Path
+
+from addon_system import AddonSystem
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+metadata = addon.metadata
+print(metadata.id)
+print(metadata.name)
+print(metadata.description)
+print(metadata.version)
+print(metadata.depends)
+print(metadata.authors)
+print(metadata.module)
+```
+
+Addon metafile has one more field "extra." 
+Which can be used to store custom values:
+
+```python
+from typing import Any
+from pathlib import Path
+
+from addon_system import AddonSystem, AddonMetaExtra
+from addon_system.libraries.pip_manager import PipLibManager
+
+root = Path() / "addons"
+system = AddonSystem(root, PipLibManager())
+
+addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+
+
+class Extra(AddonMetaExtra):
+    __defaults__ = {"handles_events": []}
+    handles_events: list[str]
+    priority: int
+
+    def validate(self, data: dict[str, Any]) -> bool:
+        handles_events = data.get("handles_events")
+        if not isinstance(handles_events, list):
+            return False
+        
+        # If not all elements are str -> return False
+        if isinstance(handles_events, list) and (
+            len(handles_events) != 0
+            and all(map(lambda e: isinstance(e, str), handles_events))
+        ):
+            return False
+
+        return True
+
+
+extra = addon.metadata.extra(Extra)
+
+if "event" in extra.handles_events:
+    print(f"{addon.metadata.id} can handle event \"event\"")
+    # Set priority extra value and save metafile
+    extra.priority = 0
+    extra.save()
+```
+
+> Note: you can read/edit addon extra info without the need to 
+> create your own AddonMetaExtra class subclass.
+> But it is useful when you have to define types of field or validate 
+> data from extra info
+
 ### Dependencies!
 
-To manage dependencies you have to use the simple
+To manage dependencies, you have to use the simple
 interface:
 
 ```python
@@ -232,8 +310,7 @@ if not system.check_dependencies(addon):
 ...
 ```
 
-Here we checked dependencies of addon and
-install it if necessarily
+Here we checked dependencies of addon and installed it if necessarily
 
 > `check_dependencies` and `satisfy_dependencies`
 > also can take addon id to manage
@@ -243,9 +320,9 @@ install it if necessarily
 
 ### Addon status
 
-> Another useful(or useless, according to your purposes) think!
+> Another useful (or useless, according to your purposes) think!
 
-Addon status allows the code know whether to
+Addon status allows the code to know whether to
 load addon into your project
 
 Usage:
@@ -302,12 +379,12 @@ module.unpack_handlers(event_handlers)
 ```
 
 > Note, addon can't be imported without satisfied dependencies.
-> If dependencies is not satisfied exception will be raised
+> If dependencies are not satisfied, exception will be raised
 
 > Interface of addon module is your own designed
 > interface for your purposes.
 >
-> Because module is regular python module you can  
+> Because the module is a regular python module, you can  
 > create whatever you want
 
 Reload of module is achieved by using the same function with `reload=True` argument:
@@ -331,9 +408,9 @@ module = addon.module(reload=True)
 > **NOTE**! That is not safe in case of usage ``threading``! Because it replaces builtins
 > (Only for import time)
 >
-> Why builtins? Because it will work as it is(without any function calls in addon's module)
+> Why builtins? Because it will work as it is (without any function calls in addon's module)
 
-You can inject values on module initiation, and use it after(will work only for module that set into metafile)
+You can inject values on module initiation, and use it after (will work only for module that set into metafile)
 
 Injection example:
 
@@ -352,7 +429,7 @@ addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 module = addon.module(replace_names=dict(this=addon))
 ```
 
-It creates problem - IDEs doesn't know that I injected name "this".
+It creates problem - IDEs doesn't know that I injected the name "this".
 
 Let's solve this!
 
@@ -366,7 +443,7 @@ print("Addon module received \"this\" variable with value:", this)
 
 > Note:
 > 1. ``resolve_runtime`` also checks requested type with
-> provided value type and will raise TypeError if it is not the same
+> a provided value type and will raise TypeError if it is different
 > 2. ``resolve_runtime`` automatically resolves the name of
 > required variable, but you can also pass it manually, by parameter ``name``
 > 3. ``resolve_runtime`` is a hack on ``builtins`` and it can be used
@@ -374,7 +451,7 @@ print("Addon module received \"this\" variable with value:", this)
 
 ### Module Interface
 
-> Wait, what? My IDE now suggests me methods that I could call!
+> Wait, what? My IDE now suggests to me methods that I could call!
 
 How this works: you create class-representation of the module -
 library instantiates it with addon and allows you to use it anywhere.
@@ -392,11 +469,11 @@ from addon_system.libraries.pip_manager import PipLibManager
 class MyInterface(ModuleInterface):
     def get_supported_events(self) -> list[str]:
         """Returns supported events by this addon"""
-        return self._get_func("get_supported_events")()
+        return self.get_func("get_supported_events")()
 
     def propagate_event(self, event_name: str, event_data: dict[str, Any]) -> bool:
         """Propagates event to this addon, and return True if handled"""
-        handler = self._get_func("on_" + event_name)
+        handler = self.get_func("on_" + event_name)
 
         if handler is None:
             return False
@@ -409,7 +486,7 @@ system = AddonSystem(root, PipLibManager())
 
 addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 
-# Value injection must be accomplished before interface creation
+# Value injection must be achieved before interface creation
 addon.module(replace_names=dict(this=addon))
 
 interface = addon.interface(
@@ -421,6 +498,14 @@ interface = addon.interface(
 if "smth" in interface.get_supported_events():
     interface.propagate_event("smth", dict(issued_by="User"))
 ```
+
+> ModuleInterface class has built-in methods to manipulate on addon's module:
+> 
+> `get_func(name: str)` — returns function with the given name, if it is not a function — returns None
+> 
+> `get_attr(name: str[, default=Any])` — get attribute by the given name, if default is not set - raises AttributeError
+> 
+> `set_attrs(**names)` — set passed keyword arguments as module attributes
 
 ### Module unloading
 
@@ -448,9 +533,9 @@ module = addon.module()
 del module
 addon.unload_module()
 
-# In case of usage ModuleInterface it will try to unload 
+# In case of usage ModuleInterface, it will try to unload 
 # all used modules by this addon(addon's module must return 
-# list of the modules in on_load method)
+# a list of the modules in on_load method)
 interface = addon.interface(ModuleInterface)
 
 # Will try to unload all used modules by its addon
@@ -463,9 +548,12 @@ interface.unload("Argument passed to on_unload module method")
 > **NOTE**!!! Unload may not work in case if module is used anywhere else.
 > If you use interface - use it instance instead of the addon's module
 >
-> Also: to unload used modules => you need to
+> Also: to unload used modules by this addon => you need to
 > return a list of these modules from on_load module method
 > (it will be called automatically by ``ModuleInterface`` class)
+> 
+> I recommend not using addon's module object, instead use ModuleInterface. 
+> That is a good idea, because it will unload module if necessary 
 
 --------------------------------
 
@@ -477,37 +565,37 @@ Addons are semi-independent components of AddonSystem.
 
 This means you can use addons without AddonSystem(but with some limitations, of course)
 
-Here is the full list of methods and properties of semi-independent component Addon:
+Here are the all methods and properties of semi-independent component Addon:
 
 1. Properties:
-    - `metadata` - Metadata class contains all the metadata of addon
-    - `path` - Path to addon
-    - `update_time` - last update time of addon(retrieved from operating system)
-    - `module_path` - path to addon's module
-    - `module_import_path` - path that passed into `importlib.import_module` to import module of addon
-    - `system` - installed AddonSystem for this addon(not for independent usage)
-    - `enabled` - addon status shortcut(not for independent usage)
+    - `metadata` — Metadata class contains all the metadata of addon
+    - `path` — Path to addon
+    - `update_time` — last update time of addon(retrieved from an operating system)
+    - `module_path` — path to addon's module
+    - `module_import_path` — path that passed into `importlib.import_module` to import module of addon
+    - `system` — installed AddonSystem for this addon(not for independent usage)
+    - `enabled` — addon status shortcut(not for independent usage)
 2. Methods:
     - `install_system(system: AddonSystem)`
-        - system - AddonSystem to install
+        - system — AddonSystem to install
 
       Install AddonSystem to this addon(usually used by AddonSystem)
     - `module(lib_manager: BaseLibManager = None, reload: bool = False, replace_names: dict[str, Any] = None)`
-        - lib_manager - Library manager, used to check
+        - lib_manager — Library manager, used to check
           dependencies before import of module.
-          You must pass it if you use addon as independent object
-        - reload - Pass True if you want to reload module(uses `importlib.reload`)
-        - replace_names - values injection to module
+          You must pass it if you use addon as an independent object
+        - reload — Pass True if you want to reload module(uses `importlib.reload`)
+        - replace_names — values injection to module
 
       Import the Addon module
     - `interface(cls: type[ModuleInterface], *args, **kwargs)`
-        - cls - subclass of ModuleInterface that will be instantiated
-        - *args, **kwargs - will be passed to ``on_load`` method of the module
+        - cls — subclass of ModuleInterface that will be instantiated
+        - *args, **kwargs — will be passed to ``on_load`` method of the module
 
-      Creates ModuleInterface instance, that can be used to access module
+      Create ModuleInterface instance that can be used to access module
       variables with IDEs suggestions
     - `unload_interface()`
-        - *args, **kwargs - will be passed to ``on_unload`` method of the addon
+        - *args, **kwargs — will be passed to ``on_unload`` method of the addon
 
       Tries to unload module interface
 
@@ -521,19 +609,20 @@ Here is the full list of methods and properties of semi-independent component Ad
       Use it if your addon has data to store
 
     - `check_dependencies(lib_manager: BaseLibManager = None)`
-        - lib_manager - Library manager, used to check
-          dependencies before import of module. You must pass it if you use addon as independent object
+        - lib_manager — Library manager, used to check
+          dependencies before import of module.
+          You must pass it if you use addon as an independent object
 
       Check addon dependencies
     - `satisfy_dependencies(lib_manager: BaseLibManager = None)`
-        - lib_manager - Library manage, used to install libraries.
-          You must pass it if you use the addon as the independent component
+        - lib_manager — Library manage, used to install libraries.
+          You must pass it if you use the addon as an independent component
 
       Install dependencies of this addon
     - `set_enabled(enabled: bool)`
-        - enabled - status of addon
+        - enabled — status of addon
 
-      Get the addon status(not for independent usage)
+      Get the addon status (not for independent usage)
     - `enable()`
       Enable addon(not for independent usage)
     - `disable()`

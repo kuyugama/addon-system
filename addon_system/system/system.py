@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 from typing import Generator, NoReturn, Union, Sequence
 
@@ -10,10 +9,10 @@ from addon_system.errors import (
     DuplicatedAddon,
 )
 from addon_system.libraries.base_manager import BaseLibManager
-from addon_system.utils import FirstParamSingletonSingleton
+from addon_system.utils import FirstParamSingleton
 
 
-class AddonSystem(metaclass=FirstParamSingletonSingleton):
+class AddonSystem(FirstParamSingleton):
     """Addon management system. Must be single instance per root"""
 
     def __init__(self, root: Path, lib_manager: BaseLibManager):
@@ -87,7 +86,7 @@ class AddonSystem(metaclass=FirstParamSingletonSingleton):
         enabled: bool = None,
         case_insensitivity: bool = False,
     ) -> Union[Generator[Addon, None, None], NoReturn]:
-        """Used for searching addons by author, name or description"""
+        """Search for addons by author, name, description or status"""
         for addon in self.iter_filesystem_addons():
             # Search statement
             # If any of author, name, description, enable status is matched yields addon
@@ -121,65 +120,71 @@ class AddonSystem(metaclass=FirstParamSingletonSingleton):
 
             if string_match or (
                 enabled is not None
-                and enabled == self._storage.get_addon(addon.metadata.id).enabled
+                and enabled == self._storage.get_stored_addon(addon.metadata.id).enabled
             ):
                 yield addon
 
     def set_addon_enabled(self, addon: str | Addon, enabled: bool):
-        """Set value of 'enabled' for addon"""
+        """Set the status of the addon"""
         addon = self.get_addon(addon)
 
         self._storage.save_addon(addon, enabled)
 
     def get_addon_enabled(self, addon: str | Addon) -> bool:
-        """Get value of 'enabled' of addon"""
+        """Get the status of the addon"""
         addon = self.get_addon(addon)
 
-        return self._storage.get_addon(addon.metadata.id).enabled
+        return self._storage.get_stored_addon(addon.metadata.id).enabled
 
     def enable_addon(self, addon: str | Addon):
-        """Enable addon.
-        This is shortcut for ::
+        """
+        Enable addon.
+        This is a shortcut for:
+        ::
 
             set_addon_enabled(addon, True)
         """
         self.set_addon_enabled(addon, True)
 
     def disable_addon(self, addon: str | Addon):
-        """Disable addon.
-        This is shortcut for ::
+        """
+        Disable addon.
+        This is a shortcut for: ::
 
             set_addon_enabled(addon, False)
         """
         self.set_addon_enabled(addon, True)
 
-    def check_dependencies(self, addon: str | Addon, use_cache: bool = True) -> bool:
+    def check_dependencies(
+        self, addon: str | Addon, use_cache: bool = True, force_check: bool = False
+    ) -> bool:
         """
         Check addon dependencies
 
         :param addon: addon to check dependencies
         :param use_cache: use cache for retrieving result(works faster)
+        :param force_check: Check dependencies and write a result to cache
+                (if it is set - ignores a cached result)
         """
         addon = self.get_addon(addon)
 
         # Use cached result. Reduces execution time
-        if use_cache:
-            stored_addon = self._storage.get_addon(addon.metadata.id)
+        if use_cache or force_check:
+            stored_addon = self._storage.get_stored_addon(addon.metadata.id)
 
-            # If addon exists in cache
-            # and last addon update time is earlier than last dependency check time
-            # return cached result
+            # If an addon check result is cached
+            # and the record is valid -> return cached result
             if (
-                stored_addon
-                and addon.update_time < stored_addon.last_dependency_check_time
+                not force_check
+                and stored_addon
+                and stored_addon.last_dependency_check.is_valid(addon)
             ):
-                return stored_addon.last_dependency_check_result
+                return stored_addon.last_dependency_check.satisfied
             else:
-                timestamp = time.time()
                 result = self._lib_manager.check_dependencies(addon.metadata.depends)
 
                 # Save dependency check result to cache
-                self._storage.save_addon(addon, None, result, timestamp)
+                self._storage.save_addon(addon, None, result)
 
                 return result
 
@@ -189,13 +194,10 @@ class AddonSystem(metaclass=FirstParamSingletonSingleton):
         """Install addon dependencies and return installed libraries"""
         addon = self.get_addon(addon)
 
-        timestamp = time.time()
         installed = self._lib_manager.install_libraries(addon.metadata.depends)
 
         # Update caches
-        self._storage.save_addon(
-            addon, dependency_check_result=True, dependency_check_time=timestamp
-        )
+        self._storage.save_addon(addon, dependency_check_result=True)
 
         return installed
 

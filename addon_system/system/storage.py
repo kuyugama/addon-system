@@ -1,20 +1,35 @@
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from json import dump, load
 
 from addon_system import Addon, AddonSystem
 from addon_system.errors import AddonSystemException
-from addon_system.utils import FirstParamSingletonSingleton
+from addon_system.utils import FirstParamSingleton
+
+
+@dataclass
+class DependencyCheckResult:
+    satisfied: bool = False
+    dependencies: list[str] = field(default_factory=list)
+
+    def is_valid(self, addon: Addon):
+        """Check if the dependency check result is valid"""
+        return addon.metadata.depends == self.dependencies
 
 
 @dataclass
 class StoredAddon:
-    last_dependency_check_time: float
-    last_dependency_check_result: bool
     enabled: bool
+    last_dependency_check: DependencyCheckResult | dict
+
+    def __post_init__(self):
+        if isinstance(self.last_dependency_check, DependencyCheckResult):
+            return
+
+        self.last_dependency_check = DependencyCheckResult(**self.last_dependency_check)
 
 
-class AddonSystemStorage(metaclass=FirstParamSingletonSingleton):
+class AddonSystemStorage(FirstParamSingleton):
     filename = ".as-storage.json"
 
     def __init__(self, system: AddonSystem):
@@ -31,44 +46,50 @@ class AddonSystemStorage(metaclass=FirstParamSingletonSingleton):
         addon: Addon,
         enabled: bool = None,
         dependency_check_result: bool = None,
-        dependency_check_time: float = None,
     ):
         if not isinstance(self._map.get("addons"), dict):
             self._map["addons"] = {}
 
-        stored_addon = self.get_addon(addon.metadata.id)
+        stored_addon = self.get_stored_addon(addon.metadata.id)
 
+        # Do not rewrite valid cache record
         if stored_addon is not None and (
             enabled is None
-            and (dependency_check_time is None and dependency_check_result is None)
-            and stored_addon.last_dependency_check_time > addon.update_time
+            and dependency_check_result is None
+            and stored_addon.last_dependency_check.is_valid(addon)
         ):
             return
 
         if enabled is None:
             enabled = False
 
-        if dependency_check_time is None:
-            dependency_check_time = time.time()
-
         if dependency_check_result is None:
             dependency_check_result = self._system.check_dependencies(addon, False)
 
         self._map["addons"][addon.metadata.id] = asdict(
-            StoredAddon(dependency_check_time, dependency_check_result, enabled)
+            StoredAddon(
+                enabled,
+                DependencyCheckResult(
+                    dependency_check_result,
+                    addon.metadata.depends,
+                ),
+            )
         )
         self.save()
 
-    def get_addon(self, addon_id: str) -> StoredAddon | None:
+    def get_stored_addon(self, addon_id: str) -> StoredAddon | None:
         if not isinstance(self._map.get("addons"), dict):
             return None
 
         data = self._map["addons"].get(addon_id)
 
-        if not data:
+        if not data or data.get("last_dependency_check") is None:
             return None
 
-        return StoredAddon(**data)
+        return StoredAddon(
+            enabled=data.get("enabled", False),
+            last_dependency_check=data.get("last_dependency_check"),
+        )
 
     def read(self):
         if not self._path.exists():

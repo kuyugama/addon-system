@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from addon_system import utils
-
+from addon_system.utils import deprecated
 
 # Contains all modules used by all addons
 # In a format: module instance => list of addons that uses this module
@@ -95,7 +95,7 @@ class ModuleInterface:
 
         return self._module
 
-    def _get_func(self, name: str) -> types.FunctionType | None:
+    def get_func(self, name: str) -> types.FunctionType | None:
         """
         Gets function from the module, returns None if not present,
         or name is not a valid variable name in python
@@ -110,14 +110,14 @@ class ModuleInterface:
 
         return func
 
-    def _set_attrs(self, **names):
+    def set_attrs(self, **names):
         """
         Installs provided attributes to module
         """
         for name, value in names.items():
             setattr(self._module_or_raise(), name, value)
 
-    def _get_attr(self, name: str, **kw) -> Any:
+    def get_attr(self, name: str, **kw) -> Any:
         """
         Gets attribute from module and raises AttributeError if attribute not exists in module
 
@@ -132,13 +132,25 @@ class ModuleInterface:
 
         return getattr(self._module_or_raise(), name, kw.get("default"))
 
+    @deprecated("Use get_attr instead", "1.2.0")
+    def _get_attr(self, name: str, **kw) -> Any:
+        return self.get_attr(name, **kw)
+
+    @deprecated("Use set_attrs instead", "1.2.0")
+    def _set_attrs(self, **names):
+        return self.set_attrs(**names)
+
+    @deprecated("Use get_func instead", "1.2.0")
+    def _get_func(self, name: str):
+        return self.get_func(name)
+
     def _load(self, args: tuple[Any, ...], kwargs: dict[str, Any]):
         """
         Calls on_load module method and saves returned
         modules to unload it when unload method will be called
         """
 
-        callback = self._get_func("on_load")
+        callback = self.get_func("on_load")
 
         if callback is None:
             return
@@ -173,7 +185,7 @@ class ModuleInterface:
         if ref_count > 4:
             raise RuntimeError("Cannot unload: more than 4 refs to module found")
 
-        handler = self._get_func("on_unload")
+        handler = self.get_func("on_unload")
 
         if handler is not None:
             handler(*args, **kwargs)
