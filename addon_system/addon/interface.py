@@ -220,6 +220,10 @@ class ModuleInterface:
             addons.remove(self._addon)
 
     def __del__(self):
+        # If instance created with error - _module attribute will not be present
+        if not hasattr(self, "_module"):
+            return
+
         if self._module is not None:
             try:
                 self.unload()

@@ -486,8 +486,8 @@ system = AddonSystem(root, PipLibManager())
 
 addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 
-# Value injection must be achieved before interface creation
-addon.module(replace_names=dict(this=addon))
+# Value injection can be achieved by using addon.module_names dictionary
+addon.module_names.update(dict(this=addon))
 
 interface = addon.interface(
     MyInterface,
@@ -572,6 +572,7 @@ Here are the all methods and properties of semi-independent component Addon:
     - `path` — Path to addon
     - `update_time` — last update time of addon(retrieved from an operating system)
     - `module_path` — path to addon's module
+    - `module_names` — names that will be passed to module on its import (can be modified)
     - `module_import_path` — path that passed into `importlib.import_module` to import module of addon
     - `system` — installed AddonSystem for this addon(not for independent usage)
     - `enabled` — addon status shortcut(not for independent usage)

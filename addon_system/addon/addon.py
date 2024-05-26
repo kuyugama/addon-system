@@ -62,6 +62,8 @@ class Addon(FirstParamSingleton):
         self._storage: AddonStorage | None = None
         self._system: AddonSystem | None = None
 
+        self._module_names: dict[str, Any] = {}
+
     def install_system(self, system):
         from addon_system import AddonSystem
 
@@ -74,6 +76,10 @@ class Addon(FirstParamSingleton):
             )
 
         self._system = system
+
+    @property
+    def module_names(self):
+        return self._module_names
 
     @property
     def system(self):
@@ -102,7 +108,7 @@ class Addon(FirstParamSingleton):
         """
         Addon update time.
         Return max of directory update time and metafile update time,
-        sometimes directories does not flushed
+        sometimes directories do not flush
         when updating files within it
         """
         return max(os.path.getmtime(self._path), self.metadata.update_time)
@@ -123,7 +129,7 @@ class Addon(FirstParamSingleton):
         return utils.get_module_import_path(path)
 
     def _import(self, reload: bool = False):
-        """Import or reloads addon's module"""
+        """Imports or reloads addon's module"""
         if reload and self._module:
             return utils.recursive_reload_module(self._module)
 
@@ -138,12 +144,13 @@ class Addon(FirstParamSingleton):
         """
         Import addon's main module or reload it. Requires dependencies to be satisfied
 
-        :param lib_manager: library manager (dependencies check)
-        :param reload: module will be reloaded if True
-        :param replace_names: replace built-in names
+        :param lib_manager: Library manager (dependency check)
+        :param reload: Module will be reloaded if True
+        :param replace_names: Replace built-in names
                 when module imports. Don't recommend if module
                 contains blocking code(``time.sleep(...)``, etc.), and you use threading.
-                Also sets this names as attributes to module instance
+                Also sets these names as attributes to module instance and addon.module_names
+                from which ``utils.resolve_runtime()`` function gets values
         """
 
         if self._module and not reload:
@@ -152,10 +159,18 @@ class Addon(FirstParamSingleton):
         if not self.check_dependencies(lib_manager):
             raise AddonImportError("Addon dependencies is not satisfied")
 
-        if replace_names is not None and isinstance(replace_names, dict):
-            with utils.replace_builtins(**replace_names):
+        if (
+            replace_names is not None
+            and isinstance(replace_names, dict)
+            or self._module_names
+        ):
+            if replace_names:
+                self._module_names.update(replace_names)
+
+            with utils.replace_builtins(**self._module_names):
                 module = self._import(reload=reload)
-            for name, value in replace_names.items():
+
+            for name, value in self._module_names.items():
                 setattr(module, name, value)
         else:
             module = self._import(reload=reload)

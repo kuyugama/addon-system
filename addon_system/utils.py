@@ -1,13 +1,16 @@
 import builtins
 import functools
+from hashlib import sha256
 import importlib
 import inspect
 import sys
 import types
 import warnings
 from contextlib import contextmanager
-from pathlib import Path, PosixPath
-from typing import TypeVar, Type, cast
+from pathlib import Path
+from typing import TypeVar, Type, cast, Optional
+
+from addon_system.errors import AddonSystemException
 
 T = TypeVar("T")
 
@@ -29,7 +32,9 @@ class FirstParamSingletonMeta(type):
             if hasattr(instance, "__reinit__"):
                 instance.__reinit__(*args, **kwargs)
         else:
-            instance = super(FirstParamSingletonMeta, cls).__call__(*args, **kwargs)
+            instance = super(FirstParamSingletonMeta, cls).__call__(
+                *args, **kwargs
+            )
             by_param[param] = instance
 
         return instance
@@ -43,12 +48,8 @@ root = Path().absolute()
 
 
 def get_module_import_path(path_to_module: Path) -> str:
-    relative_path = path_to_module.relative_to(root)
-
-    if isinstance(relative_path, PosixPath):
-        return str(relative_path).replace("/", ".")
-    else:
-        return str(relative_path).replace("\\", ".")
+    """Get an import path from a module file path"""
+    return ".".join(path_to_module.relative_to(root).parts)
 
 
 def recursive_reload_module(
@@ -60,7 +61,13 @@ def recursive_reload_module(
     if not isinstance(exclude, tuple):
         exclude = ()
 
-    exclude += (*sys.builtin_module_names, "os", "builtins", "__main__", "ntpath")
+    exclude += (
+        *sys.builtin_module_names,
+        "os",
+        "builtins",
+        "__main__",
+        "ntpath",
+    )
 
     if module.__name__ in exclude:
         return module
@@ -89,11 +96,15 @@ def deprecated(msg: str, version: str):
                 "always", DeprecationWarning
             )  # turn off warning filter
             warnings.warn(
-                "{} is deprecated since {}: {}".format(func.__name__, version, msg),
+                "{} is deprecated since {}: {}".format(
+                    func.__name__, version, msg
+                ),
                 category=DeprecationWarning,
                 stacklevel=2,
             )
-            warnings.simplefilter("default", DeprecationWarning)  # reset warning filter
+            warnings.simplefilter(
+                "default", DeprecationWarning
+            )  # reset warning filter
 
             return func(*args, **kwargs)
 
@@ -131,6 +142,33 @@ def replace_builtins(**names):
             delattr(builtins, name)
 
 
+@functools.lru_cache
+def hash_string_tuple(tuple_: tuple[str, ...]):
+    hash_ = sha256()
+    for string in tuple_:
+        hash_.update(string.encode())
+
+    return hash_.hexdigest()
+
+
+@functools.lru_cache
+def find_addon(path: Path | str) -> Optional["Addon"]:
+    if isinstance(path, str):
+        path = Path(path)
+
+    if path.is_file():
+        path = path.parent
+
+    from addon_system import Addon
+
+    # If this is the root of the filesystem - break
+    while path != path.parent:
+        try:
+            return Addon(path)
+        except AddonSystemException:
+            path = path.parent
+
+
 def resolve_runtime(cls: type[T], name: str = None) -> T:
     """
     Helper function for addon modules. Resolves name from builtins
@@ -140,19 +178,21 @@ def resolve_runtime(cls: type[T], name: str = None) -> T:
     """
     called_from = inspect.stack()[1]
 
-    if called_from.function != "<module>":
-        raise RuntimeError(
-            "resolve_runtime can be called only at module level. Not in a function"
+    addon = find_addon(called_from.filename)
+
+    if not addon:
+        raise ValueError(
+            "resolve_runtime can be called only from addon modules"
         )
 
     if name is None:
         # Get a name of the variable
         name = called_from.code_context[-1].split("=", 1)[0].strip()
 
-    if not hasattr(builtins, name):
+    if name not in addon.module_names:
         raise NameError(f'Requested "{name}" is not provided by addon loader')
 
-    value = getattr(builtins, name)
+    value = addon.module_names[name]
 
     if not isinstance(value, cls):
         raise TypeError(

@@ -3,6 +3,7 @@ import json
 import os.path
 from json import load, dump
 from pathlib import Path
+import time
 from typing import Any, TypeVar
 
 from addon_system.errors import AddonMetaInvalid
@@ -59,7 +60,9 @@ class AddonMetaExtra:
             data[key] = value
 
         if not self.validate(data):
-            raise AddonMetaInvalid("Invalid extra data provided in metafile", meta.path)
+            raise AddonMetaInvalid(
+                "Invalid extra data provided in metafile", meta.path
+            )
 
     @property
     def metadata(self) -> "AddonMeta":
@@ -160,10 +163,15 @@ class AddonMeta:
             raise AddonMetaInvalid("Addon meta doesn't exists", path)
 
         if not path.name == "addon.json":
-            raise AddonMetaInvalid('Addon meta file\'s name must be "addon.json"', path)
+            raise AddonMetaInvalid(
+                'Addon meta file\'s name must be "addon.json"', path
+            )
 
         self._path = path
         self._data = {}
+
+        self._read_time = None
+
         self.read()
 
     @property
@@ -175,12 +183,15 @@ class AddonMeta:
         """Addon metafile update time"""
         return os.path.getmtime(self._path)
 
-    def _required_fields(self, required_fields: list[str], content: dict[str, Any]):
+    def _required_fields(
+        self, required_fields: list[str], content: dict[str, Any]
+    ):
         """Checks if all required fields are set"""
         for field in required_fields:
             if field not in content:
                 raise AddonMetaInvalid(
-                    f"Metadata file content must include {field} field", self._path
+                    f"Metadata file content must include {field} field",
+                    self._path,
                 )
 
     def _fields_types(self, content: dict[str, Any]):
@@ -239,6 +250,8 @@ class AddonMeta:
             if defaults_installed:
                 self.save()
 
+        self._read_time = time.time()
+
     def save(self):
         """
         Saves changes of the metadata into a file.
@@ -248,11 +261,15 @@ class AddonMeta:
         with self._path.open("w", encoding="utf8") as f:
             dump(self._data, f, ensure_ascii=False, indent=2)
 
+        self._read_time = time.time()
+
     def extra(self, cls: type[E] = AddonMetaExtra) -> E:
         """Creates proxy for extra data in metafile"""
 
         if not issubclass(cls, AddonMetaExtra):
-            raise TypeError(f"Cannot create AddonMetaExtraProxy from type {type(cls)}")
+            raise TypeError(
+                f"Cannot create AddonMetaExtraProxy from type {type(cls)}"
+            )
 
         data = self._data.setdefault("extra", {})
 
@@ -266,6 +283,10 @@ class AddonMeta:
             raise ValueError(
                 f"Cannot get {item} - use AddonMeta.extra to get/set custom values"
             )
+
+        # If metafile is updated - read changes and then get the value
+        if self.update_time > self._read_time:
+            self.read()
 
         value = self._data[item]
 

@@ -1,20 +1,26 @@
-import time
 from dataclasses import dataclass, asdict, field
+import functools
+from hashlib import sha256
 from json import dump, load
+import time
 
 from addon_system import Addon, AddonSystem
 from addon_system.errors import AddonSystemException
-from addon_system.utils import FirstParamSingleton
+from addon_system.utils import FirstParamSingleton, hash_string_tuple
 
 
 @dataclass
 class DependencyCheckResult:
     satisfied: bool = False
-    dependencies: list[str] = field(default_factory=list)
+    hash: str = field(default_factory=sha256)
+
+    @classmethod
+    def depends_hash_list(cls, depends: list[str]) -> str:
+        return hash_string_tuple(tuple(depends))
 
     def is_valid(self, addon: Addon):
         """Check if the dependency check result is valid"""
-        return addon.metadata.depends == self.dependencies
+        return self.depends_hash_list(addon.metadata.depends) == self.hash
 
 
 @dataclass
@@ -26,7 +32,9 @@ class StoredAddon:
         if isinstance(self.last_dependency_check, DependencyCheckResult):
             return
 
-        self.last_dependency_check = DependencyCheckResult(**self.last_dependency_check)
+        self.last_dependency_check = DependencyCheckResult(
+            **self.last_dependency_check
+        )
 
 
 class AddonSystemStorage(FirstParamSingleton):
@@ -64,14 +72,18 @@ class AddonSystemStorage(FirstParamSingleton):
             enabled = False
 
         if dependency_check_result is None:
-            dependency_check_result = self._system.check_dependencies(addon, False)
+            dependency_check_result = self._system.check_dependencies(
+                addon, False
+            )
 
         self._map["addons"][addon.metadata.id] = asdict(
             StoredAddon(
                 enabled,
                 DependencyCheckResult(
                     dependency_check_result,
-                    addon.metadata.depends,
+                    DependencyCheckResult.depends_hash_list(
+                        addon.metadata.depends
+                    ),
                 ),
             )
         )
@@ -86,9 +98,14 @@ class AddonSystemStorage(FirstParamSingleton):
         if not data or data.get("last_dependency_check") is None:
             return None
 
+        if data["last_dependency_check"].get("hash") is None:
+            return None
+
         return StoredAddon(
             enabled=data.get("enabled", False),
-            last_dependency_check=data.get("last_dependency_check"),
+            last_dependency_check=DependencyCheckResult(
+                **data.get("last_dependency_check"),
+            ),
         )
 
     def read(self):
