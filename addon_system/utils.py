@@ -44,12 +44,12 @@ class FirstParamSingleton(metaclass=FirstParamSingletonMeta):
     """Singleton as a normal base class"""
 
 
-root = Path().absolute()
+project_root = Path(sys.path[0])
 
 
 def get_module_import_path(path_to_module: Path) -> str:
     """Get an import path from a module file path"""
-    return ".".join(path_to_module.relative_to(root).parts)
+    return ".".join(path_to_module.relative_to(project_root).parts)
 
 
 def recursive_reload_module(
