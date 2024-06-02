@@ -1,5 +1,3 @@
-from typing import Any
-
 # # _Addon System_
 
 > This is a fully rewritten RelativeAddonsSystem
