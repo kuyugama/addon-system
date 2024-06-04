@@ -1,12 +1,13 @@
-import copy
-import json
-import os.path
+from typing import Any, TypeVar
 from json import load, dump
 from pathlib import Path
+import os.path
+import copy
+import json
 import time
-from typing import Any, TypeVar
 
 from addon_system.errors import AddonMetaInvalid
+from addon_system import utils
 
 DEFAULTS = dict(version="0.0.1", description="", depends=[])
 
@@ -173,6 +174,10 @@ class AddonMeta:
         self._read_time = None
 
         self.read()
+    
+    @property
+    def depends_hash(self) -> str:
+        return utils.hash_string_tuple(tuple(self.depends))
 
     @property
     def path(self) -> Path:

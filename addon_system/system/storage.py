@@ -1,12 +1,11 @@
 from dataclasses import dataclass, asdict, field
-import functools
-from hashlib import sha256
 from json import dump, load
+from hashlib import sha256
 import time
 
-from addon_system import Addon, AddonSystem
 from addon_system.errors import AddonSystemException
-from addon_system.utils import FirstParamSingleton, hash_string_tuple
+from addon_system.utils import FirstParamSingleton
+from addon_system import Addon, AddonSystem
 
 
 @dataclass
@@ -14,27 +13,15 @@ class DependencyCheckResult:
     satisfied: bool = False
     hash: str = field(default_factory=sha256)
 
-    @classmethod
-    def depends_hash_list(cls, depends: list[str]) -> str:
-        return hash_string_tuple(tuple(depends))
-
     def is_valid(self, addon: Addon):
         """Check if the dependency check result is valid"""
-        return self.depends_hash_list(addon.metadata.depends) == self.hash
+        return addon.metadata.depends_hash == self.hash
 
 
 @dataclass
 class StoredAddon:
     enabled: bool
-    last_dependency_check: DependencyCheckResult | dict
-
-    def __post_init__(self):
-        if isinstance(self.last_dependency_check, DependencyCheckResult):
-            return
-
-        self.last_dependency_check = DependencyCheckResult(
-            **self.last_dependency_check
-        )
+    last_dependency_check: DependencyCheckResult
 
 
 class AddonSystemStorage(FirstParamSingleton):
@@ -81,9 +68,7 @@ class AddonSystemStorage(FirstParamSingleton):
                 enabled,
                 DependencyCheckResult(
                     dependency_check_result,
-                    DependencyCheckResult.depends_hash_list(
-                        addon.metadata.depends
-                    ),
+                    addon.metadata.depends_hash,
                 ),
             )
         )
