@@ -3,6 +3,7 @@ import functools
 from hashlib import sha256
 import importlib
 import inspect
+from operator import methodcaller
 import sys
 import types
 import warnings
@@ -79,6 +80,22 @@ def recursive_reload_module(
         recursive_reload_module(value, exclude)
 
     return importlib.reload(module)
+
+
+def string_contains(parent: str, sub: str, case_sensitive: bool = True) -> bool:
+    if not case_sensitive:
+        sub = sub.lower()
+        parent = parent.lower()
+    
+    return sub in parent
+
+
+def string_iterable_contains(iterable: list[str], sub: str, case_sensitive: bool = True) -> bool:
+    if not case_sensitive:
+        sub = sub.lower()
+        iterable = map(methodcaller("lower"), iterable)
+    
+    return sub in iterable
 
 
 def deprecated(msg: str, version: str):

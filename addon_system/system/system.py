@@ -1,15 +1,19 @@
-from pathlib import Path
 from typing import Generator, NoReturn, Union, Sequence
+from pathlib import Path
 
-from addon_system import Addon
+from addon_system.libraries.base_manager import BaseLibManager
 from addon_system.errors import (
     AddonSystemException,
-    AddonInvalid,
     AddonMetaInvalid,
     DuplicatedAddon,
+    AddonInvalid,
 )
-from addon_system.libraries.base_manager import BaseLibManager
-from addon_system.utils import FirstParamSingleton
+from addon_system.utils import (
+    string_iterable_contains,
+    FirstParamSingleton,
+    string_contains,
+)
+from addon_system import Addon
 
 
 class AddonSystem(FirstParamSingleton):
@@ -67,7 +71,8 @@ class AddonSystem(FirstParamSingleton):
     def get_addon(self, addon: str | Addon) -> Addon:
         if isinstance(addon, Addon) and not addon.path.is_relative_to(self._root):
             raise AddonInvalid(
-                "Passed addon is not related to this system, this may cause some problems"
+                "Passed addon is not related to this system, "
+                "this may cause some problems"
             )
 
         if isinstance(addon, str):
@@ -97,41 +102,34 @@ class AddonSystem(FirstParamSingleton):
             ):
                 yield addon
 
-            # Search statement
-            # If any of author, name, description, enable status is matched yields addon
-            if not case_insensitivity:
-                string_match = (
-                    (author in addon.metadata.authors)
-                    or (name is not None and name in addon.metadata.name)
-                    or (
-                        description is not None
-                        and description in addon.metadata.description
-                    )
-                )
-            else:
-                string_match = (
-                    (
-                        author is not None
-                        and any(
-                            filter(
-                                lambda a: a.lower() == author, addon.metadata.authors
-                            )
-                        )
-                    )
-                    or (
-                        name is not None and name.lower() in addon.metadata.name.lower()
-                    )
-                    or (
-                        description is not None
-                        and description.lower() in addon.metadata.description.lower()
-                    )
-                )
-
-            if string_match or (
-                enabled is not None
-                and enabled == self._storage.get_stored_addon(addon.metadata.id).enabled
+            # If author is set and this author
+            # is not present in addon authors - skip addon
+            if author is not None and string_iterable_contains(
+                addon.metadata.authors, author, not case_insensitivity
             ):
-                yield addon
+                continue
+
+            # If name is set and this name not in addon name - skip addon
+            if name is not None and not string_contains(
+                addon.metadata.name, name, not case_insensitivity
+            ):
+                continue
+
+            # If description is set and this description
+            # not in addon description - skip addon
+            if description is not None and not string_contains(
+                addon.metadata.description, description, not case_insensitivity
+            ):
+                continue
+
+            # If required addon status is not equal to stored - skip addon
+            if (
+                enabled is not None
+                and enabled != self._storage.get_stored_addon(addon.metadata.id).enabled
+            ):
+                continue
+
+            yield addon
 
     def set_addon_enabled(self, addon: str | Addon, enabled: bool):
         """Set the status of the addon"""
