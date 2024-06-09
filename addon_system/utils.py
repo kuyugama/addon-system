@@ -47,6 +47,24 @@ class FirstParamSingleton(metaclass=FirstParamSingletonMeta):
 
 project_root = Path(sys.path[0])
 
+# If running in interactive mode imports should be relative to working director
+try:
+    # If the pycharm python debug plugin is installed
+    # and python is running using it - set the project_root
+    # to current working directory
+    import _pydev_runfiles  # noqa
+
+    # This module is used only for check that pycharm debug plugin is installed
+    del _pydev_runfiles
+
+    if sys.path[0].endswith("pydev"):
+        project_root = Path().absolute()
+
+except ImportError:
+    pass
+if hasattr(sys, "ps1"):
+    project_root = Path().absolute()
+
 
 def get_module_import_path(path_to_module: Path) -> str:
     """Get an import path from a module file path"""
@@ -86,15 +104,17 @@ def string_contains(parent: str, sub: str, case_sensitive: bool = True) -> bool:
     if not case_sensitive:
         sub = sub.lower()
         parent = parent.lower()
-    
+
     return sub in parent
 
 
-def string_iterable_contains(iterable: list[str], sub: str, case_sensitive: bool = True) -> bool:
+def string_iterable_contains(
+    iterable: list[str], sub: str, case_sensitive: bool = True
+) -> bool:
     if not case_sensitive:
         sub = sub.lower()
         iterable = map(methodcaller("lower"), iterable)
-    
+
     return sub in iterable
 
 

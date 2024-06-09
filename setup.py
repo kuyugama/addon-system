@@ -12,7 +12,12 @@ setup(
         "addon_system.system",
         "addon_system.libraries",
     ],
-    scripts=["addon.py"],
+    entry_points={
+        "console_scripts": [
+            "make-addon = addon_system.make_addon:main",
+            "addon = addon_system.make_addon:main",  # backwards compatibility
+        ]
+    },
     url="https://github.com/kuyugama/addon-system",
     license="GNU GPVv3",
     author="KuyuGama",

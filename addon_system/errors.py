@@ -8,6 +8,14 @@ class AddonSystemException(BaseException):
         self.args = (message,)
 
 
+class BuildError(AddonSystemException):
+    """Something went wrong in building the addon"""
+
+
+class BuildOrderError(AddonSystemException):
+    """The build order is violated"""
+
+
 class AddonMetaInvalid(AddonSystemException):
     """Addon metadata is invalid"""
 

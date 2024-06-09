@@ -115,7 +115,7 @@ There are two ways to achieve it
   command line tool:
 
 ```bash
-python -m addon --name="SomeAddon" --authors="KuyuGama,Anon" --id="username/SomeAddon" --module="__init__.py" addons/ 
+make-addon -name "SomeAddon" -a "KuyuGama,KugaYumo" -i "KuguYama/SomeAddon" -m __init__ addons
 ```
 
 - Manually(meh) create addon dir and metafile:
@@ -552,6 +552,81 @@ interface.unload("Argument passed to on_unload module method")
 > 
 > I recommend not using addon's module object, instead use ModuleInterface. 
 > That is a good idea, because it will unload module if necessary 
+
+--------------------------------
+
+## Addon creation tool
+
+> It is easy to create addon!
+
+Library provides tools to create addons via terminal and code:
+
+### Command-line addon building
+`make-addon` is designed to create addons easily using terminal
+
+Parameters:  
+-n, --name — Addon name(must be CamelCase because tool creates addon directory with the same name)  
+-a, --authors — Comma separated author names  
+-i, --id — Addon id (If not provided will be created using **first author name** + **"/"** + **addon name**)  
+-m, --module — Set the main module name of this addon (Useful when creating from source code)  
+-p, --package — Path to package that will be used as addon source  
+-v, --version — Version of addon (Usually SemVer)  
+-d, --description — Description of addon  
+-D, --depends — Comma separated addon dependencies (in `pip freeze` format)  
+-t, --template — Path to module template file (Will be used if no source package is provided)  
+-f, --force — Force create addon (rewrites addon if exists)  
+place_to — Directory where addon will be created  
+
+
+### In-code addon building
+`addon_system.addon.builder.AddonBuilder` and `addon_system.addon.builder.AddonPackageBuilder` 
+are designed to build addons from code easily
+
+#### `addon_system.addon.builder.AddonBuilder`
+
+Methods:
+- `meta(name: str, authors: list[str], version: str, depends: list[str], id: str, description: str)`  
+    Sets the metadata of this addon
+- `package(package: AddonPackageBuilder)`  
+    Sets the package of this addon
+- `build(path: str | Path | AddonSystem, addon_dir_name: str = None)`  
+    Builds addon at given path. If the path is AddonSystem object then addon_dir_name must be passed (addon's root)
+
+
+#### `addon_system.addon.builder.AddonPackageBuilder`
+
+Methods:
+- [classmethod] `from_path(path: str | Path)`  
+    Create AddonPackageBuilder instance from path. Includes all modules and child packages within given path
+- `add(module: StringModule | ModuleType | AddonPackageBuilder)`  
+    Add module or sub package to this package
+- `build(path: str | Path, unpack: bool = False)`  
+    Build this package at given path  
+    If `unpack` set to `True` - will source of this package at root of given path 
+    (Useful if instance is created using `from_path`)
+
+Example of building addon from code:
+
+```python
+from addon_system.addon.builder import AddonBuilder, AddonPackageBuilder, StringModule
+
+package = AddonPackageBuilder.from_path("addon-source")
+package.add(StringModule("print(1, 2, 3)", "__init__"))
+package.set_main("__init__")
+
+builder = AddonBuilder()
+builder.meta(
+    name="AddonName",
+    authors=["KuyuGama"],
+    version="0.0.1",
+    depends=["pyyaml==6.0.1"],
+    id="KuyuGama/AddonName",
+    description="Addon description"
+)
+builder.package(package)
+builder.build("addons/AddonName")
+```
+
 
 --------------------------------
 
