@@ -176,7 +176,9 @@ def main() -> int:
     elif args.module:
         print(f"Using {green(args.module)} as main module")
         builder.package(
-            AddonPackageBuilder().add(StringModule(module, args.module))
+            AddonPackageBuilder()
+            .add(StringModule(module, args.module))
+            .set_main(args.module)
         )
     else:
         print(f"Using {green('__init__.py')} as main module")

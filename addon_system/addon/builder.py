@@ -1,13 +1,12 @@
-import inspect
-import json
 from dataclasses import dataclass
-from pathlib import Path
 from types import ModuleType
 from typing import Union
+from pathlib import Path
+import inspect
+import json
 
-from addon_system import AddonSystem
 from addon_system.errors import BuildOrderError, BuildError
-
+from addon_system import AddonSystem
 
 __all__ = ["StringModule", "AddonPackageBuilder", "AddonBuilder"]
 
@@ -20,6 +19,13 @@ class StringModule:
     def __post_init__(self):
         if not self.name.endswith(".py"):
             self.name += ".py"
+
+        if not self.code.endswith("\n"):
+            self.code += "\n"
+
+    @property
+    def stem(self):
+        return self.name[:-3]
 
 
 class AddonPackageBuilder:
@@ -37,7 +43,7 @@ class AddonPackageBuilder:
     def __init__(self, name: str = "."):
         self.main = None
         self.name = name
-        self._modules: list[ModuleType | StringModule] = []
+        self._modules: list[StringModule] = []
         self._children = []
 
     @classmethod
@@ -85,11 +91,29 @@ class AddonPackageBuilder:
         """
         Add module or child package to addon package
         """
-        if isinstance(module, (ModuleType, StringModule)):
+
+        if isinstance(module, ModuleType):
+            module = StringModule(inspect.getsource(module), module.__name__)
+
+        if isinstance(module, StringModule):
+            if "." in module.stem and self.name != module.stem.split(".")[-1]:
+                self.add(
+                    AddonPackageBuilder(module.stem.split(".", 1)[0]).add(
+                        StringModule(module.code, module.stem.split(".", 1)[1])
+                    )
+                )
+
+                return self
+
+        if isinstance(module, StringModule):
             if self.exists(module):
                 raise ValueError("Module already exists")
 
             self._modules.append(module)
+
+            if module.name == "__init__.py" and not self.main:
+                self.set_main(module.name)
+
         elif isinstance(module, AddonPackageBuilder):
             self._children.append(module)
         else:
@@ -99,9 +123,14 @@ class AddonPackageBuilder:
 
     def exists(self, name: str | ModuleType | StringModule) -> bool:
         if isinstance(name, ModuleType):
-            name = name.__name__
-        if isinstance(name, StringModule):
+            name = name.__name__ + ".py"
+
+        elif isinstance(name, StringModule):
             name = name.name
+
+        else:
+            if not name.endswith(".py"):
+                name += ".py"
 
         for module in self._modules:
             if (
@@ -121,14 +150,7 @@ class AddonPackageBuilder:
         if not name.endswith(".py"):
             name += ".py"
 
-        for module in self._modules:
-            if isinstance(module, StringModule):
-                if module.name == name:
-                    break
-            else:
-                if module.__name__ == name:
-                    break
-        else:
+        if not self.exists(name):
             raise ValueError("Module not found")
 
         self.main = name
@@ -153,15 +175,8 @@ class AddonPackageBuilder:
         package_root.mkdir(parents=True, exist_ok=True)
 
         for module in self._modules:
-            if isinstance(module, StringModule):
-                name = module.name
-                code = module.code
-            else:
-                name = module.__name__
-                code = inspect.getsource(module)
-
-            with open(package_root / name, "w", encoding="utf8") as module:
-                module.write(code)
+            with open(package_root / module.name, "w", encoding="utf8") as mf:
+                mf.write(module.code)
 
         for child in self._children:
             child.build(package_root)
