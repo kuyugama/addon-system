@@ -2,6 +2,7 @@ from typing import Generator, NoReturn, Union, Sequence
 from pathlib import Path
 
 from addon_system.libraries.base_manager import BaseLibManager
+from addon_system import Addon
 from addon_system.errors import (
     AddonSystemException,
     AddonMetaInvalid,
@@ -13,7 +14,6 @@ from addon_system.utils import (
     FirstParamSingleton,
     string_contains,
 )
-from addon_system import Addon
 
 
 class AddonSystem(FirstParamSingleton):
@@ -33,7 +33,9 @@ class AddonSystem(FirstParamSingleton):
     def root(self):
         return self._root
 
-    def iter_filesystem_addons(self) -> Union[Generator[Addon, None, None], NoReturn]:
+    def iter_filesystem_addons(
+        self,
+    ) -> Union[Generator[Addon, None, None], NoReturn]:
         """Iter in root dir for addons"""
         from addon_system.system.storage import AddonSystemStorage
 
@@ -43,12 +45,14 @@ class AddonSystem(FirstParamSingleton):
                 continue
 
             if not path.is_dir():
-                raise AddonSystemException(f"Non-dir object in root dir. Cause: {path}")
+                continue
 
             try:
                 addon = Addon(path)
                 if addon.metadata.id in ids:
-                    raise DuplicatedAddon("Found multiple addons with the same id")
+                    raise DuplicatedAddon(
+                        "Found multiple addons with the same id"
+                    )
 
                 self._storage.save_addon(addon)
 
@@ -69,7 +73,9 @@ class AddonSystem(FirstParamSingleton):
                 return addon
 
     def get_addon(self, addon: str | Addon) -> Addon:
-        if isinstance(addon, Addon) and not addon.path.is_relative_to(self._root):
+        if isinstance(addon, Addon) and not addon.path.is_relative_to(
+            self.root
+        ):
             raise AddonInvalid(
                 "Passed addon is not related to this system, "
                 "this may cause some problems"
@@ -125,7 +131,8 @@ class AddonSystem(FirstParamSingleton):
             # If required addon status is not equal to stored - skip addon
             if (
                 enabled is not None
-                and enabled != self._storage.get_stored_addon(addon.metadata.id).enabled
+                and enabled
+                != self._storage.get_stored_addon(addon.metadata.id).enabled
             ):
                 continue
 
@@ -163,7 +170,10 @@ class AddonSystem(FirstParamSingleton):
         self.set_addon_enabled(addon, True)
 
     def check_dependencies(
-        self, addon: str | Addon, use_cache: bool = True, force_check: bool = False
+        self,
+        addon: str | Addon,
+        use_cache: bool = True,
+        force_check: bool = False,
     ) -> bool:
         """
         Check addon dependencies
@@ -188,7 +198,9 @@ class AddonSystem(FirstParamSingleton):
             ):
                 return stored_addon.last_dependency_check.satisfied
             else:
-                result = self._lib_manager.check_dependencies(addon.metadata.depends)
+                result = self._lib_manager.check_dependencies(
+                    addon.metadata.depends
+                )
 
                 # Save dependency check result to cache
                 self._storage.save_addon(addon, None, result)
