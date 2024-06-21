@@ -99,15 +99,6 @@ class AddonSystem(FirstParamSingleton):
     ) -> Union[Generator[Addon, None, None], NoReturn]:
         """Search for addons by author, name, description or status"""
         for addon in self.iter_filesystem_addons():
-            # If no one parameter is set - yield all addons
-            if (
-                author is None
-                and name is None
-                and description is None
-                and enabled is None
-            ):
-                yield addon
-
             # If author is set and this author
             # is not present in addon authors - skip addon
             if author is not None and string_iterable_contains(
