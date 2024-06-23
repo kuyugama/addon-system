@@ -128,7 +128,7 @@ class Addon(FirstParamSingleton):
 
         return utils.get_module_import_path(path)
 
-    def _import(self, reload: bool = False):
+    def _import(self, reload: bool = False) -> types.ModuleType:
         """Imports or reloads addon's module"""
         if reload and self._module:
             return utils.recursive_reload_module(self._module)
@@ -140,7 +140,7 @@ class Addon(FirstParamSingleton):
         lib_manager: BaseLibManager = None,
         reload: bool = False,
         replace_names: dict[str, Any] = None,
-    ):
+    ) -> types.ModuleType:
         """
         Import addon's main module or reload it. Requires dependencies to be satisfied
 
@@ -200,7 +200,7 @@ class Addon(FirstParamSingleton):
         if not issubclass(cls, ModuleInterface):
             raise TypeError(f"Invalid ModuleInterface type provided: {cls}")
 
-        if self._interface is not None:
+        if self._interface is not None and self._interface.module_loaded:
             return self._interface
 
         self._interface = cls(self, *load_args, **load_kwargs)

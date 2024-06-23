@@ -77,7 +77,9 @@ class ModuleInterface:
             called_from.filename != inspect.getfile(Addon)
             and called_from.function != "interface"
         ):
-            raise RuntimeError("Can be created only from addon interface() method")
+            raise RuntimeError(
+                "Can be created only from addon interface() method"
+            )
 
         self._addon = addon
         self._module = addon.module()
@@ -86,8 +88,12 @@ class ModuleInterface:
 
         self._load(load_args, load_kwargs)
 
+    @property
+    def module_loaded(self) -> bool:
+        return self._module is not None
+
     def _module_or_raise(self):
-        if not self._module:
+        if not self.module_loaded:
             raise RuntimeError(
                 "Module has been unloaded! "
                 f"Recreate interface instance with addon.interface(cls={type(self).__name__})"
@@ -183,7 +189,9 @@ class ModuleInterface:
         ref_count = sys.getrefcount(self._module_or_raise()) - 1
 
         if ref_count > 4:
-            raise RuntimeError("Cannot unload: more than 4 refs to module found")
+            raise RuntimeError(
+                "Cannot unload: more than 4 refs to module found"
+            )
 
         handler = self.get_func("on_unload")
 
