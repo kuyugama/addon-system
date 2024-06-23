@@ -45,7 +45,7 @@ class FirstParamSingleton(metaclass=FirstParamSingletonMeta):
     """Singleton as a normal base class"""
 
 
-project_root = Path(sys.path[0])
+project_root = Path(sys.path[0]).absolute()
 
 # If running in interactive mode imports should be relative to working director
 try:
