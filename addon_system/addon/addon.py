@@ -1,105 +1,284 @@
+from typing import Union, Any, TypeVar
+from abc import abstractmethod
+from pathlib import Path
 import importlib
-import os
 import string
 import types
-from pathlib import Path
-from typing import Union, Any, TypeVar
+import os
 
+from addon_system.libraries.base_manager import BaseLibManager
+from .interface import ModuleInterface, unload_module
 from addon_system import utils
+from . import meta
+
 from addon_system.errors import (
-    AddonInvalid,
     AddonSystemException,
     AddonImportError,
+    AddonInvalid,
 )
-from addon_system.libraries.base_manager import BaseLibManager
-from addon_system.utils import FirstParamSingleton
-from .interface import ModuleInterface, unload_module
-from .meta import AddonMeta
+
+try:
+    import pybaked
+
+    pybaked_installed = True
+except ImportError:
+    pybaked_installed = False
 
 ModuleInterfaceType = TypeVar("ModuleInterfaceType", bound="ModuleInterface")
 
 
-class Addon(FirstParamSingleton):
-    """Class-wrapper of addon. Semi-independent part of AddonSystem"""
-
-    _by_path: dict[Path, "Addon"] = {}
+class AbstractAddon(utils.ABCFirstParamSingleton):
+    """Addon wrapper class. Semi-independent part of AddonSystem"""
 
     @staticmethod
-    def validate_directory_name(name: str) -> bool:
-        """
-        Validate addon's directory name
+    @abstractmethod
+    def validate_name(name: str) -> bool:
+        raise NotImplementedError
 
-        :returns: ``bool``
-        """
-        for char in name:
-            if char not in string.ascii_letters:
-                return False
-        return True
+    @staticmethod
+    @abstractmethod
+    def validate_path(path: Path) -> bool:
+        raise NotImplementedError
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, meta_path: Path = None) -> None:
         if not path.exists():
-            raise AddonInvalid("Addon at this path does not exists")
+            raise AddonInvalid("Path doesn't exists")
 
-        if not path.is_dir():
-            raise AddonInvalid("Addons must be dirs")
+        if not self.validate_name(path.name):
+            raise AddonInvalid("Name invalid")
 
-        if not self.validate_directory_name(path.name):
-            raise AddonInvalid(
-                "Addon dir name can contain only ascii letters and be in CamelCase"
-            )
-
-        from addon_system.addon.storage import AddonStorage
         from addon_system import AddonSystem
-
-        meta = AddonMeta(path / "addon.json")
+        from addon_system.addon.storage import AddonStorage
 
         self._path = path
-        self._meta = meta
+        self._meta_path = meta_path or path
+
+        self._meta: meta.AbstractAddonMeta = meta.factory(self._meta_path)
 
         self._module: types.ModuleType | None = None
         self._interface: ModuleInterface | None = None
 
-        self._storage: AddonStorage | None = None
         self._system: AddonSystem | None = None
+        self._storage: AddonStorage | None = None
 
-        self._module_names: dict[str, Any] = {}
+        self._namespace: dict[str, Any] | None = None
 
-    def install_system(self, system):
+    def install_system(self, system) -> None:
         from addon_system import AddonSystem
 
         if not isinstance(system, AddonSystem):
-            return
+            raise TypeError(
+                "Expected AddonSystem, but got {}".format(type(system))
+            )
 
-        if not self.path.is_relative_to(system.root):
+        if not self._path.is_relative_to(system.root):
             raise AddonSystemException(
                 "Addon is not owned by system that you tried to install to addon"
             )
 
         self._system = system
 
+    def is_in_root(self, system) -> bool:
+        from addon_system import AddonSystem
+
+        if not isinstance(system, AddonSystem):
+            raise TypeError(
+                "Expected AddonSystem, but got {}".format(type(system))
+            )
+
+        return self._path.is_relative_to(system.root)
+
+    @abstractmethod
+    def module(
+        self, lib_manager: BaseLibManager = None, reload: bool = False
+    ) -> types.ModuleType:
+        """
+        Returns addon's main module.
+
+        Import's if not, reloads if ``reload`` set to True.
+
+        If not system installed - requires ``lib_manager`` to be passed
+
+        If dependencies is not satisfied - raises AddonImportError
+
+        To set names that can be accessed through module -
+        update namespace property contents
+
+        :param lib_manager: Library manager, that will
+                be used to check addon's dependencies
+        :param reload: Whether reload addon's main module or not
+
+        :return: Addon's main module
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def interface(
+        self, cls: type[ModuleInterfaceType], *load_args, **load_kwargs
+    ) -> ModuleInterfaceType:
+        """
+        Creates ModuleInterface for this addon
+
+        Use addon.module() first if this addon created without AddonSystem,
+        or you need to set values that can be accessed on module evaluation
+
+        **Note**: Only one interface can be set to the addon!
+        Other attempts will return already set interface
+
+        :param cls: ModuleInterface subclass
+        :param load_args: positional arguments
+                that will be passed to ``on_load`` module method
+        :param load_kwargs: keyword arguments
+                that will be passed to ``on_load`` module method
+        :return: module interface instance
+        """
+        raise NotImplementedError
+
+    def unload_interface(self, *args, **kwargs) -> None:
+        """
+        Unload addon's interface
+
+        :param args: positional arguments to ``on_unload`` module method
+        :param kwargs: keyword arguments to ``on_unload`` module method
+        """
+        if self._interface is None:
+            return
+
+        self._interface.unload(*args, **kwargs)
+        self._interface = None
+
+    def unload_module(self):
+        """Tries to unload addon's module"""
+        if self._module is None:
+            return
+
+        unload_module(self._module)
+
+        self._module = None
+
+    @abstractmethod
+    def storage(self):
+        """Get addon's key-value storage"""
+        raise NotImplementedError
+
+    def check_dependencies(self, lib_manager: BaseLibManager = None) -> bool:
+        """
+        Check addon dependencies
+
+        :param lib_manager: required if system is
+                not installed to addon(if system is installed its faster)
+        :return: True if dependencies is satisfied
+        """
+        if lib_manager is None and self._system is None:
+            raise AddonSystemException(
+                "To check dependencies addon require lib_manager to be "
+                "provided or system to be installed."
+                "With installed library its function uses System's cache to "
+                "reduce time"
+            )
+
+        if self._system is not None:
+            # Use of cache reduces required time
+            return self._system.check_dependencies(self)
+
+        if lib_manager:
+            return lib_manager.check_dependencies(self.metadata.depends)
+
+    def satisfy_dependencies(self, lib_manager: BaseLibManager = None):
+        if self._system is None and lib_manager is None:
+            raise AddonSystemException(
+                "To install dependencies addon require lib_manager to be "
+                "provided or system to be installed"
+            )
+
+        if self._system:
+            # Install dependencies using system and save installed libraries
+            # to system's library manager
+            return self._system.satisfy_dependencies(self)
+
+        if lib_manager:
+            # Install dependencies with user provided library manager
+            return lib_manager.install_libraries(self.metadata.depends)
+
+    def set_enabled(self, enabled: bool):
+        """
+        Change addon status via its instance. Requires AddonSystem to be installed
+
+        :param enabled: new addon status
+        """
+
+        self.enabled = enabled
+
+    def enable(self):
+        """
+        Enable addon via its instance. Requires AddonSystem to be installed.
+
+        Shortcut for: ::
+
+            addon.enabled = True
+
+        """
+        self.enabled = True
+
+    def disable(self):
+        """
+        Disable addon via its instance. Requires AddonSystem to be installed.
+
+        Shortcut for: ::
+
+            addon.enabled = False
+
+        """
+        self.enabled = False
+
     @property
+    def path(self):
+        """Get addon's path"""
+        return self._path
+
+    @property
+    def namespace(self) -> dict[str, Any] | None:
+        """Get addon's namespace"""
+        return self._namespace
+
+    @property
+    @utils.deprecated(
+        "module_names was renamed to namespace and will be removed in 1.3.0",
+        version="1.2.10",
+    )
     def module_names(self):
-        return self._module_names
+        return self._namespace
 
     @property
     def system(self):
+        """Get addon's installed system"""
         return self._system
 
     @property
-    def enabled(self) -> bool:
+    def enabled(self):
+        """Check addon's enabled status"""
         if self._system is None:
             raise AddonSystemException(
-                "To check addon status you must install AddonSystem"
+                "To check addon status via its instance you must install system's instance to it"
             )
 
         return self._system.get_addon_enabled(self)
 
-    @property
-    def path(self):
-        return self._path
+    @enabled.setter
+    def enabled(self, enabled: bool) -> None:
+        """Set addon's enabled status"""
+        if self._system is None:
+            raise AddonSystemException(
+                "To change addon status via its instance you must install system's instance to it"
+            )
+
+        if not isinstance(enabled, bool):
+            raise TypeError("Addon status must be bool type")
+
+        self._system.set_addon_enabled(self, enabled)
 
     @property
-    def metadata(self):
+    def metadata(self) -> meta.AbstractAddonMeta:
         """Addon's metadata"""
         return self._meta
 
@@ -112,6 +291,56 @@ class Addon(FirstParamSingleton):
         when updating files within it
         """
         return max(os.path.getmtime(self._path), self.metadata.update_time)
+
+    def __eq__(self, other: Union[str, "Addon"]) -> bool:
+        if isinstance(other, str):
+            return self.metadata.id == other
+        elif isinstance(other, Addon):
+            return self is other or self.metadata.id == other.metadata.id
+        else:
+            return False
+
+    def __hash__(self) -> int:
+        return hash(self._path)
+
+    def __str__(self):
+        return (
+            f"{self.__class__.__name__}"
+            f"<{self.metadata.id}>"
+            f"(name={self.metadata.name!r}, path={str(self._path)!r})"
+        )
+
+
+class Addon(utils.FirstParamSingleton, AbstractAddon):
+    """Class-wrapper of addon. Semi-independent part of AddonSystem"""
+
+    @staticmethod
+    def validate_path(path: Path) -> bool:
+        """Validates addon's path"""
+        return path.is_dir() and Addon.validate_name(path.name)
+
+    @staticmethod
+    def validate_directory_name(name: str) -> bool:
+        """
+        Validate addon's directory name
+
+        :returns: ``bool``
+        """
+        return Addon.validate_name(name)
+
+    @staticmethod
+    def validate_name(name: str) -> bool:
+        """Validates addon's name (Path.name)'"""
+        for char in name:
+            if char not in string.ascii_letters:
+                return False
+        return True
+
+    def __init__(self, path: Path):
+        if not path.is_dir():
+            raise AddonInvalid("Addons must be dirs")
+
+        super().__init__(path, path / "addon.json")
 
     @property
     def module_path(self) -> Path:
@@ -139,18 +368,24 @@ class Addon(FirstParamSingleton):
         self,
         lib_manager: BaseLibManager = None,
         reload: bool = False,
-        replace_names: dict[str, Any] = None,
     ) -> types.ModuleType:
         """
-        Import addon's main module or reload it. Requires dependencies to be satisfied
+        Returns addon's main module.
 
-        :param lib_manager: Library manager (dependency check)
-        :param reload: Module will be reloaded if True
-        :param replace_names: Replace built-in names
-                when module imports. Don't recommend if module
-                contains blocking code(``time.sleep(...)``, etc.), and you use threading.
-                Also sets these names as attributes to module instance and addon.module_names
-                from which ``utils.resolve_runtime()`` function gets values
+        Import's if not, reloads if ``reload`` set to True.
+
+        If not system installed - requires ``lib_manager`` to be passed
+
+        If dependencies is not satisfied - raises AddonImportError
+
+        To set names that can be accessed through module -
+        update namespace property contents
+
+        :param lib_manager: Library manager, that will
+                be used to check addon's dependencies
+        :param reload: Whether reload addon's main module or not
+
+        :return: Addon's main module
         """
 
         if self._module and not reload:
@@ -159,18 +394,11 @@ class Addon(FirstParamSingleton):
         if not self.check_dependencies(lib_manager):
             raise AddonImportError("Addon dependencies is not satisfied")
 
-        if (
-            replace_names is not None
-            and isinstance(replace_names, dict)
-            or self._module_names
-        ):
-            if replace_names:
-                self._module_names.update(replace_names)
-
-            with utils.replace_builtins(**self._module_names):
+        if self._namespace is not None:
+            with utils.replace_builtins(**self._namespace):
                 module = self._import(reload=reload)
 
-            for name, value in self._module_names.items():
+            for name, value in self._namespace.items():
                 setattr(module, name, value)
         else:
             module = self._import(reload=reload)
@@ -192,9 +420,10 @@ class Addon(FirstParamSingleton):
         Other attempts will return already set interface
 
         :param cls: ModuleInterface subclass
-        :param load_args: positional arguments that will be passed to on_load module method
-        :param load_kwargs: keyword arguments that will be passed to on_load module method
-
+        :param load_args: positional arguments
+                that will be passed to ``on_load`` module method
+        :param load_kwargs: keyword arguments
+                that will be passed to ``on_load`` module method
         :return: module interface instance
         """
         if not issubclass(cls, ModuleInterface):
@@ -207,26 +436,6 @@ class Addon(FirstParamSingleton):
 
         return self._interface
 
-    def unload_interface(self, *args, **kwargs):
-        """
-        Tries to unload interface
-
-        All arguments will be passed to on_unload module method
-        """
-        if self._interface is None:
-            return
-
-        self._interface.unload(*args, **kwargs)
-        self._interface = None
-
-    def unload_module(self):
-        """Tries to unload module"""
-        if self._module is None:
-            return
-
-        unload_module(self._module)
-        self._module = None
-
     def storage(self):
         """Get addon's key-value storage"""
         from addon_system.addon.storage import AddonStorage
@@ -238,83 +447,109 @@ class Addon(FirstParamSingleton):
 
         return self._storage
 
-    def check_dependencies(self, lib_manager: BaseLibManager = None) -> bool:
-        """
-        Check addon dependencies
-        :param lib_manager: required if system is not installed to addon(if system is installed its faster)
-        :return: True if dependencies is satisfied
-        """
-        if lib_manager is None and self._system is None:
-            raise AddonSystemException(
-                "To check dependencies addon require lib_manager to be provided or system to be installed. "
-                "With installed library its function uses System's cache to reduce time"
+
+supported: list[type[AbstractAddon]] = [Addon]
+
+if pybaked_installed:
+    import pybaked
+
+    class BakedAddon(utils.FirstParamSingleton, AbstractAddon):
+        @staticmethod
+        def validate_name(name: str) -> bool:
+            return (
+                name.endswith(".py.baked")
+                and name.split(".", 1)[0].isidentifier()
             )
 
-        if self._system is not None:
-            # Use of cache reduces required time
-            return self._system.check_dependencies(self)
+        @staticmethod
+        def validate_path(path: Path) -> bool:
+            return path.is_file() and BakedAddon.validate_name(path.name)
 
-        if lib_manager:
-            return lib_manager.check_dependencies(self.metadata.depends)
+        def __init__(self, path: Path):
+            super().__init__(path)
 
-    def satisfy_dependencies(self, lib_manager: BaseLibManager = None):
-        if self._system is None and lib_manager is None:
-            raise AddonSystemException(
-                "To install dependencies addon require lib_manager to be provided or system to be installed"
-            )
+        @property
+        def module_import_path(self):
+            package_path = self.path.with_name(self.path.name.split(".", 1)[0])
 
-        if self._system:
-            # Install dependencies using system and save installed libraries to system's library manager
-            return self._system.satisfy_dependencies(self)
+            path = (package_path / self.metadata.module).with_suffix("")
 
-        if lib_manager:
-            # Install dependencies with user provided library manager
-            return lib_manager.install_libraries(self.metadata.depends)
+            if path.name == "__init__":
+                path = path.parent
 
-    def set_enabled(self, enabled: bool):
-        """
-        Change addon status via its instance. Requires AddonSystem to be installed
+            return utils.get_module_import_path(path)
 
-        :param enabled: new addon status
-        """
-        if self._system is None:
-            raise AddonSystemException(
-                "To change addon status via its instance you must install system's instance to it"
-            )
-        self._system.set_addon_enabled(self, enabled)
+        def _import(self, reload: bool = False) -> types.ModuleType:
+            if reload and self._module:
+                return utils.recursive_reload_module(self._module)
 
-    def enable(self):
-        """
-        Enable addon via its instance. Requires AddonSystem to be installed.
+            pybaked.loader.init()
 
-        Shortcut for: ::
+            return importlib.import_module(self.module_import_path)
 
-            set_addon_enabled(True)
+        def module(
+            self, lib_manager: BaseLibManager = None, reload: bool = False
+        ) -> types.ModuleType:
+            if not reload and self._module:
+                return self._module
 
-        """
-        self.set_enabled(True)
+            if not self.check_dependencies(lib_manager):
+                raise AddonImportError("Addon dependencies is not satisfied")
 
-    def disable(self):
-        """
-        Disable addon via its instance. Requires AddonSystem to be installed.
+            if self._namespace is not None:
+                with utils.replace_builtins(**self._namespace):
+                    module = self._import(reload=reload)
 
-        Shortcut for: ::
+                for name, value in self._namespace.items():
+                    setattr(module, name, value)
+            else:
+                module = self._import(reload=reload)
 
-            set_addon_enabled(False)
+            self._module = module
 
-        """
-        self.set_enabled(False)
+            return self._module
 
-    def __eq__(self, other: Union[str, "Addon"]) -> bool:
-        if isinstance(other, str):
-            return self.metadata.id == other
-        elif isinstance(other, Addon):
-            return self is other or self.metadata.id == other.metadata.id
-        else:
-            return False
+        def interface(
+            self, cls: type[ModuleInterfaceType], *load_args, **load_kwargs
+        ) -> ModuleInterfaceType:
+            """
+            Creates ModuleInterface for this addon
 
-    def __hash__(self) -> int:
-        return hash(self._path)
+            Use addon.module() first if this addon created without AddonSystem,
+            or you need to set values that can be accessed on module evaluation
 
-    def __str__(self):
-        return f"Addon<{self.metadata.id}>(name={self.metadata.name!r}, path={str(self._path)!r})"
+            **Note**: Only one interface can be set to the addon!
+            Other attempts will return already set interface
+
+            :param cls: ModuleInterface subclass
+            :param load_args: positional arguments
+                    that will be passed to ``on_load`` module method
+            :param load_kwargs: keyword arguments
+                    that will be passed to ``on_load`` module method
+            :return: module interface instance
+            """
+            if not issubclass(cls, ModuleInterface):
+                raise TypeError(f"Invalid ModuleInterface type provided: {cls}")
+
+            if self._interface is not None and self._interface.module_loaded:
+                return self._interface
+
+            self._interface = cls(self, *load_args, **load_kwargs)
+
+            return self._interface
+
+        def storage(self):
+            raise AddonInvalid("Baked addons doesn't support storages yet")
+
+    supported.append(BakedAddon)
+
+
+def factory(path: Path) -> AbstractAddon:
+    """
+    Makes addon instance depend on path
+
+    :return: AbstractAddon subclass
+    """
+    for cls in supported:
+        if cls.validate_path(path):
+            return cls(path)

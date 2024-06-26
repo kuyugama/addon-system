@@ -469,7 +469,8 @@ class MyInterface(ModuleInterface):
         """Returns supported events by this addon"""
         return self.get_func("get_supported_events")()
 
-    def propagate_event(self, event_name: str, event_data: dict[str, Any]) -> bool:
+    def propagate_event(self, event_name: str,
+                        event_data: dict[str, Any]) -> bool:
         """Propagates event to this addon, and return True if handled"""
         handler = self.get_func("on_" + event_name)
 
@@ -485,7 +486,7 @@ system = AddonSystem(root, PipLibManager())
 addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 
 # Value injection can be achieved by using addon.module_names dictionary
-addon.module_names.update(dict(this=addon))
+addon.namespace.update(dict(this=addon))
 
 interface = addon.interface(
     MyInterface,

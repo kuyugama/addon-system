@@ -1,8 +1,9 @@
 from typing import Generator, NoReturn, Union, Sequence
 from pathlib import Path
 
+from addon_system.addon.addon import AbstractAddon, factory as addon_factory
 from addon_system.libraries.base_manager import BaseLibManager
-from addon_system import Addon
+
 from addon_system.errors import (
     AddonSystemException,
     AddonMetaInvalid,
@@ -35,7 +36,7 @@ class AddonSystem(FirstParamSingleton):
 
     def iter_filesystem_addons(
         self,
-    ) -> Union[Generator[Addon, None, None], NoReturn]:
+    ) -> Union[Generator[AbstractAddon, None, None], NoReturn]:
         """Iter in root dir for addons"""
         from addon_system.system.storage import AddonSystemStorage
 
@@ -44,11 +45,13 @@ class AddonSystem(FirstParamSingleton):
             if path.name == AddonSystemStorage.filename:
                 continue
 
-            if not path.is_dir():
-                continue
-
             try:
-                addon = Addon(path)
+                addon = addon_factory(path)
+
+                # No addon class matched by path
+                if addon is None:
+                    continue
+
                 if addon.metadata.id in ids:
                     raise DuplicatedAddon(
                         "Found multiple addons with the same id"
@@ -66,19 +69,17 @@ class AddonSystem(FirstParamSingleton):
                     f"Invalid addon in root. Cause: {path}"
                 ) from e
 
-    def get_addon_by_id(self, id_: str) -> Union[Addon, None, NoReturn]:
+    def get_addon_by_id(self, id_: str) -> Union[AbstractAddon, None, NoReturn]:
         """Retrieves addon by its id"""
         for addon in self.iter_filesystem_addons():
             if addon.metadata.id == id_:
                 return addon
 
-    def get_addon(self, addon: str | Addon) -> Addon:
-        if isinstance(addon, Addon) and not addon.path.is_relative_to(
-            self.root
-        ):
+    def get_addon(self, addon: str | AbstractAddon) -> AbstractAddon:
+        if isinstance(addon, AbstractAddon) and not addon.is_in_root(self):
             raise AddonInvalid(
                 "Passed addon is not related to this system, "
-                "this may cause some problems"
+                "this may cause unexpected problems"
             )
 
         if isinstance(addon, str):
@@ -87,6 +88,7 @@ class AddonSystem(FirstParamSingleton):
 
             if not addon:
                 raise AddonInvalid(f"Addon with id {addon_id} not found")
+
         return addon
 
     def query_addons(
@@ -96,7 +98,7 @@ class AddonSystem(FirstParamSingleton):
         description: str = None,
         enabled: bool = None,
         case_insensitivity: bool = False,
-    ) -> Union[Generator[Addon, None, None], NoReturn]:
+    ) -> Union[Generator[AbstractAddon, None, None], NoReturn]:
         """Search for addons by author, name, description or status"""
         for addon in self.iter_filesystem_addons():
             # If author is set and this author
@@ -129,19 +131,19 @@ class AddonSystem(FirstParamSingleton):
 
             yield addon
 
-    def set_addon_enabled(self, addon: str | Addon, enabled: bool):
+    def set_addon_enabled(self, addon: str | AbstractAddon, enabled: bool):
         """Set the status of the addon"""
         addon = self.get_addon(addon)
 
         self._storage.save_addon(addon, enabled)
 
-    def get_addon_enabled(self, addon: str | Addon) -> bool:
+    def get_addon_enabled(self, addon: str | AbstractAddon) -> bool:
         """Get the status of the addon"""
         addon = self.get_addon(addon)
 
         return self._storage.get_stored_addon(addon.metadata.id).enabled
 
-    def enable_addon(self, addon: str | Addon):
+    def enable_addon(self, addon: str | AbstractAddon):
         """
         Enable addon.
         This is a shortcut for:
@@ -151,7 +153,7 @@ class AddonSystem(FirstParamSingleton):
         """
         self.set_addon_enabled(addon, True)
 
-    def disable_addon(self, addon: str | Addon):
+    def disable_addon(self, addon: str | AbstractAddon):
         """
         Disable addon.
         This is a shortcut for: ::
@@ -162,7 +164,7 @@ class AddonSystem(FirstParamSingleton):
 
     def check_dependencies(
         self,
-        addon: str | Addon,
+        addon: str | AbstractAddon,
         use_cache: bool = True,
         force_check: bool = False,
     ) -> bool:
@@ -200,7 +202,7 @@ class AddonSystem(FirstParamSingleton):
 
         return self._lib_manager.check_dependencies(addon.metadata.depends)
 
-    def satisfy_dependencies(self, addon: str | Addon) -> Sequence[str]:
+    def satisfy_dependencies(self, addon: str | AbstractAddon) -> Sequence[str]:
         """Install addon dependencies and return installed libraries"""
         addon = self.get_addon(addon)
 

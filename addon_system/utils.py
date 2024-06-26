@@ -1,5 +1,6 @@
 import builtins
 import functools
+from abc import ABCMeta
 from hashlib import sha256
 import importlib
 import inspect
@@ -41,8 +42,20 @@ class FirstParamSingletonMeta(type):
         return instance
 
 
+class ABCFirstParamSingletonMeta(FirstParamSingletonMeta, ABCMeta):
+    def __call__(cls, *args, **kwargs):
+        instance = super(FirstParamSingletonMeta, cls).__call__(*args, **kwargs)
+        super(ABCMeta, cls).__call__(*args, **kwargs)
+
+        return instance
+
+
 class FirstParamSingleton(metaclass=FirstParamSingletonMeta):
     """Singleton as a normal base class"""
+
+
+class ABCFirstParamSingleton(metaclass=ABCFirstParamSingletonMeta):
+    """ABC + Singleton as a normal base class"""
 
 
 project_root = Path(sys.path[0]).absolute()
@@ -226,10 +239,10 @@ def resolve_runtime(cls: type[T], name: str = None) -> T:
         # Get a name of the variable
         name = called_from.code_context[-1].split("=", 1)[0].strip()
 
-    if name not in addon.module_names:
+    if name not in addon.namespace:
         raise NameError(f'Requested "{name}" is not provided by addon loader')
 
-    value = addon.module_names[name]
+    value = addon.namespace[name]
 
     if not isinstance(value, cls):
         raise TypeError(

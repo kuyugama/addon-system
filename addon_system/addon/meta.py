@@ -1,3 +1,4 @@
+from abc import abstractmethod, ABC
 from typing import Any, TypeVar
 from json import load, dump
 from pathlib import Path
@@ -6,8 +7,17 @@ import copy
 import json
 import time
 
-from addon_system.errors import AddonMetaInvalid
+from addon_system.errors import AddonMetaInvalid, AddonSystemException
 from addon_system import utils
+
+try:
+    import pybaked
+
+    pybaked_installed = True
+
+except ImportError:
+    pybaked_installed = False
+
 
 DEFAULTS = dict(version="0.0.1", description="", depends=[])
 
@@ -51,7 +61,7 @@ class AddonMetaExtra:
     # Defaults that will be set if not present in extra
     __defaults__: dict[str, Any] = {}
 
-    def __init__(self, data: dict[str, Any], meta: "AddonMeta"):
+    def __init__(self, data: dict[str, Any], meta: "AbstractAddonMeta"):
         self._metadata = meta
         self._data = data
 
@@ -66,7 +76,7 @@ class AddonMetaExtra:
             )
 
     @property
-    def metadata(self) -> "AddonMeta":
+    def metadata(self) -> "AbstractAddonMeta":
         return self._metadata
 
     def validate(self, data: dict[str, Any]) -> bool:  # noqa
@@ -79,6 +89,11 @@ class AddonMetaExtra:
 
     def save(self):
         """Saves extra data changes to metafile"""
+        if not self._metadata.can_be_saved:
+            raise AddonSystemException(
+                "Cannot write extra info to file. Metadata cannot be saved"
+            )
+
         self._metadata.save()
 
     def get(self, key: str, default: Any = None):
@@ -148,8 +163,8 @@ class AddonMetaExtra:
 E = TypeVar("E", bound=AddonMetaExtra)
 
 
-class AddonMeta:
-    """Addon metafile representation(Immutable)"""
+class AbstractAddonMeta(utils.ABCFirstParamSingleton):
+    """Addon's metadata representation(Immutable)"""
 
     id: str
     module: str
@@ -159,28 +174,38 @@ class AddonMeta:
     authors: list[str]
     version: str
 
-    def __init__(self, path: Path):
+    @staticmethod
+    @abstractmethod
+    def validate_path(path: Path) -> bool:
+        """Validate metadata path. Returns False if invalid"""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def can_be_saved(self) -> bool:
+        raise NotImplementedError
+
+    def __init__(self, path: Path) -> None:
         if not path.exists():
-            raise AddonMetaInvalid("Addon meta doesn't exists", path)
+            raise AddonMetaInvalid("Path doesn't exist", path)
 
-        if not path.name == "addon.json":
-            raise AddonMetaInvalid(
-                'Addon meta file\'s name must be "addon.json"', path
-            )
+        if not self.validate_path(path):
+            raise AddonMetaInvalid("Addon meta filename is invalid", path)
 
-        self._path = path
-        self._data = {}
+        self._path: Path = path
+        self._data: dict[str, Any] = {}
 
-        self._read_time = None
-
+        self._read_time: float | None = None
         self.read()
-    
+
     @property
     def depends_hash(self) -> str:
+        """Get dependencies hash"""
         return utils.hash_string_tuple(tuple(self.depends))
 
     @property
     def path(self) -> Path:
+        """Get metadata file path"""
         return self._path
 
     @property
@@ -237,36 +262,19 @@ class AddonMeta:
 
         return defaults_installed
 
+    @abstractmethod
     def read(self):
-        """Reads the content of metadata file"""
-        with self._path.open("r", encoding="utf8") as f:
-            content = load(f)
-            if not isinstance(content, dict):
-                raise AddonMetaInvalid(
-                    f"Addon meta file contains invalid data type: {type(content).__name__}",
-                    self._path,
-                )
+        """Reads the content of the addon's metadata"""
+        raise NotImplementedError
 
-            self._validate_content(content)
-            defaults_installed = self._install_defaults(content)
-
-            self._data = content
-
-            if defaults_installed:
-                self.save()
-
-        self._read_time = time.time()
-
+    @abstractmethod
     def save(self):
         """
-        Saves changes of the metadata into a file.
+        Saves the content of the addon's metadata
 
-        **Note**: only extra in metadata is mutable
+        **Note**: Not all addon metadata can be saved
         """
-        with self._path.open("w", encoding="utf8") as f:
-            dump(self._data, f, ensure_ascii=False, indent=2)
-
-        self._read_time = time.time()
+        raise NotImplementedError
 
     def extra(self, cls: type[E] = AddonMetaExtra) -> E:
         """Creates proxy for extra data in metafile"""
@@ -312,3 +320,96 @@ class AddonMeta:
             f"version={self.version!r}, "
             f"path={str(self._path.absolute())!r})"
         )
+
+
+class AddonMeta(AbstractAddonMeta):
+    """Addon metafile representation(Immutable)"""
+
+    @staticmethod
+    def validate_path(path: Path):
+        return path.is_file() and path.name == "addon.json"
+
+    @property
+    def can_be_saved(self):
+        return True
+
+    def read(self):
+        """Reads the content of metadata file"""
+        with self._path.open("r", encoding="utf8") as f:
+            content = load(f)
+            if not isinstance(content, dict):
+                raise AddonMetaInvalid(
+                    f"Addon meta file contains invalid data type: {type(content).__name__}",
+                    self._path,
+                )
+
+            self._validate_content(content)
+            defaults_installed = self._install_defaults(content)
+
+            self._data = content
+
+            if defaults_installed:
+                self.save()
+
+        self._read_time = time.time()
+
+    def save(self):
+        """
+        Saves changes of the metadata into a file.
+
+        **Note**: only extra in metadata is mutable
+        """
+        with self._path.open("w", encoding="utf8") as f:
+            dump(self._data, f, ensure_ascii=False, indent=2)
+
+        self._read_time = time.time()
+
+
+supported: list[type[AbstractAddonMeta]] = [AddonMeta]
+
+if pybaked_installed:
+    from pybaked import BakedReader
+
+    class BakedAddonMeta(AbstractAddonMeta, utils.FirstParamSingleton):
+        @staticmethod
+        def validate_path(path: Path):
+            return path.is_file() and path.name.endswith(".py.baked")
+
+        @property
+        def can_be_saved(self):
+            return False
+
+        def read(self):
+            """Reads the addon metadata"""
+            reader = BakedReader(self.path)
+
+            metadata = reader.metadata
+
+            if not reader.hash_match:
+                raise AddonMetaInvalid(
+                    "Cannot read metadata from baked file: Hash don't match",
+                    self._path,
+                )
+
+            self._validate_content(metadata)
+            self._install_defaults(metadata)
+
+            self._data = metadata
+
+            self._read_time = time.time()
+
+        def save(self):
+            raise AddonSystemException("Cannot save baked addon metadata")
+
+    supported.append(BakedAddonMeta)
+
+
+def factory(path: Path) -> AbstractAddonMeta:
+    """
+    AddonMeta factory - makes AddonMeta instance based on path
+
+    :return: AddonMeta instance
+    """
+    for cls in supported:
+        if cls.validate_path(path):
+            return cls(path)

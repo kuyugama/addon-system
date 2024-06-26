@@ -95,7 +95,7 @@ def main() -> int:
 
     builder = AddonBuilder()
 
-    if not Addon.validate_directory_name(args.name):
+    if not Addon.validate_name(args.name):
         print_error(
             "Addon name must be in ascii letters and can be in CamelCase"
         )

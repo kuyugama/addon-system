@@ -5,7 +5,8 @@ import time
 
 from addon_system.errors import AddonSystemException
 from addon_system.utils import FirstParamSingleton
-from addon_system import Addon, AddonSystem
+from addon_system.addon.addon import AbstractAddon
+from addon_system import AddonSystem
 
 
 @dataclass
@@ -13,7 +14,7 @@ class DependencyCheckResult:
     satisfied: bool = False
     hash: str = field(default_factory=sha256)
 
-    def is_valid(self, addon: Addon):
+    def is_valid(self, addon: AbstractAddon):
         """Check if the dependency check result is valid"""
         return addon.metadata.depends_hash == self.hash
 
@@ -38,7 +39,7 @@ class AddonSystemStorage(FirstParamSingleton):
 
     def save_addon(
         self,
-        addon: Addon,
+        addon: AbstractAddon,
         enabled: bool = None,
         dependency_check_result: bool = None,
     ):
