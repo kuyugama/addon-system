@@ -6,7 +6,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.bumpver]
-current_version = "1.2.10"
+current_version = "1.2.11"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message = "⏫ {old_version} → {new_version}"
 tag_message = "v{new_version}"
