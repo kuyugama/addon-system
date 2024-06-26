@@ -407,6 +407,9 @@ module = addon.module(reload=True)
 > (Only for import time)
 >
 > Why builtins? Because it will work as it is (without any function calls in addon's module)
+> 
+> **Note**: In future - builtins will no longer be used for this, so i recommend 
+> to use ``addon_system.utils.resolve_runtime``
 
 You can inject values on module initiation, and use it after (will work only for module that set into metafile)
 
@@ -424,7 +427,9 @@ system = AddonSystem(root, PipLibManager())
 addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 
 # "this" name will contain addon instance in addon's module
-module = addon.module(replace_names=dict(this=addon))
+addon.namespace.update(dict(this=addon))
+
+module = addon.module()
 ```
 
 It creates problem - IDEs doesn't know that I injected the name "this".
@@ -444,8 +449,6 @@ print("Addon module received \"this\" variable with value:", this)
 > a provided value type and will raise TypeError if it is different
 > 2. ``resolve_runtime`` automatically resolves the name of
 > required variable, but you can also pass it manually, by parameter ``name``
-> 3. ``resolve_runtime`` is a hack on ``builtins`` and it can be used
-> in all child modules and will return the same value
 
 ### Module Interface
 
@@ -485,7 +488,7 @@ system = AddonSystem(root, PipLibManager())
 
 addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 
-# Value injection can be achieved by using addon.module_names dictionary
+# Value injection can be achieved by using addon.namespace dictionary
 addon.namespace.update(dict(this=addon))
 
 interface = addon.interface(
@@ -646,7 +649,8 @@ Here are the all methods and properties of semi-independent component Addon:
     - `path` — Path to addon
     - `update_time` — last update time of addon(retrieved from an operating system)
     - `module_path` — path to addon's module
-    - `module_names` — names that will be passed to module on its import (can be modified)
+    - `namespace` — custom namespace of all addon's modules (you may need 
+            to edit that to pass desired values on module initialization)
     - `module_import_path` — path that passed into `importlib.import_module` to import module of addon
     - `system` — installed AddonSystem for this addon(not for independent usage)
     - `enabled` — addon status shortcut(not for independent usage)
@@ -655,12 +659,11 @@ Here are the all methods and properties of semi-independent component Addon:
         - system — AddonSystem to install
 
       Install AddonSystem to this addon(usually used by AddonSystem)
-    - `module(lib_manager: BaseLibManager = None, reload: bool = False, replace_names: dict[str, Any] = None)`
+    - `module(lib_manager: BaseLibManager = None, reload: bool = False)`
         - lib_manager — Library manager, used to check
           dependencies before import of module.
           You must pass it if you use addon as an independent object
         - reload — Pass True if you want to reload module(uses `importlib.reload`)
-        - replace_names — values injection to module
 
       Import the Addon module
     - `interface(cls: type[ModuleInterface], *args, **kwargs)`
