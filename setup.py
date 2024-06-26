@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf8") as fh:
 
 setup(
     name="addon-system",
-    version="1.2.9",
+    version="1.2.10",
     packages=[
         "addon_system",
         "addon_system.addon",
