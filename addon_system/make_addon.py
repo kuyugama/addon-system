@@ -42,6 +42,14 @@ parse.add_argument(
     action="store_true",
 )
 parse.add_argument(
+    "-b",
+    "--bake",
+    help="Bake addon to a single file. Requires pybaked to be installed. "
+    "Recommended to use with -p parameter",
+    default=False,
+    action="store_true",
+)
+parse.add_argument(
     "--no-color",
     help="forces tool to not use color",
     default=False,
@@ -88,6 +96,18 @@ def print_error(s: str) -> None:
 
 def main() -> int:
     args = parse.parse_args()
+
+    try:
+        import pybaked
+    except ImportError:
+        if args.bake:
+            print(
+                red(
+                    f"{yellow('pybaked')} is not installed "
+                    f"({cyan('caused by -b / --bake parameter')})"
+                )
+            )
+            return 6
 
     if args.no_color:
         global USE_COLORS
@@ -192,7 +212,7 @@ def main() -> int:
         else:
             os.remove(addon_path)
 
-    builder.build(addon_path)
+    addon_path = str(builder.build(addon_path, baked=args.bake))
 
     print(
         f"Successfully created addon {green(args.name)}[{yellow(id_)}] at {cyan(addon_path)}"

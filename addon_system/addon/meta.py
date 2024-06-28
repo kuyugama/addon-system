@@ -1,5 +1,5 @@
-from abc import abstractmethod, ABC
 from typing import Any, TypeVar
+from abc import abstractmethod
 from json import load, dump
 from pathlib import Path
 import os.path
@@ -385,7 +385,7 @@ if pybaked_installed:
 
             metadata = reader.metadata
 
-            if not reader.hash_match:
+            if reader.hash_match is False:
                 raise AddonMetaInvalid(
                     "Cannot read metadata from baked file: Hash don't match",
                     self._path,

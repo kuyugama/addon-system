@@ -27,5 +27,5 @@ setup(
     long_description_content_type="text/markdown",
     classifiers=["Programming Language :: Python :: 3"],
     python_requires=">=3.9",
-    extras_require={"baked": ["pybaked==0.0.11"]},
+    extras_require={"baked": ["pybaked==0.0.12"]},
 )

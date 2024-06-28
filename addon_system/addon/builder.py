@@ -11,6 +11,13 @@ from addon_system import AddonSystem
 __all__ = ["StringModule", "AddonPackageBuilder", "AddonBuilder"]
 
 
+try:
+    import pybaked
+
+except ImportError:
+    pybaked = None
+
+
 @dataclass
 class StringModule:
     code: str
@@ -44,7 +51,7 @@ class AddonPackageBuilder:
         self.main = None
         self.name = name
         self._modules: list[StringModule] = []
-        self._children = []
+        self._children: list[AddonPackageBuilder] = []
 
     @classmethod
     def from_path(cls, path: Union[str, Path]) -> "AddonPackageBuilder":
@@ -157,6 +164,19 @@ class AddonPackageBuilder:
 
         return self
 
+    def to_dict(self) -> dict[str, str]:
+        """Unpacks all packages into a python dict"""
+        content: dict[str, str] = {}
+
+        for module in self._modules:
+            content[module.stem] = module.code
+
+        for child in self._children:
+            for module, code in child.to_dict().items():
+                content[child.name + "." + module] = code
+
+        return content
+
     def build(self, package_root: Union[str, Path], unpack: bool = False):
         """Builds package from given modules and child packages
 
@@ -249,9 +269,51 @@ class AddonBuilder:
 
         return self
 
+    def _build_default(self, at: Path) -> Path:
+        at.mkdir()
+
+        meta = self._meta
+        meta.update(dict(module=self._package.main))
+
+        with (at / "addon.json").open("w", encoding="utf8") as metafile:
+            json.dump(meta, metafile, indent=2, ensure_ascii=False)
+
+        self._package.build(at, unpack=True)
+
+        return at
+
+    def _build_baked(self, at: Path) -> Path:
+        meta = self._meta
+        meta.update(dict(module=self._package.main))
+
+        baker = pybaked.BakedMaker(True, meta)
+
+        for module_name, source in self._package.to_dict().items():
+            baker.include_module(module_name.encode(), source.encode())
+
+        return baker.file(at)
+
     def build(
-        self, path: str | Path | AddonSystem, addon_dir_name: str = None
+        self,
+        path: str | Path | AddonSystem,
+        addon_dir_name: str = None,
+        baked: bool = False,
     ) -> Path:
+        """
+        Builds the addon at the given path
+
+        :param path: Where to build addon.
+                if AddonSystem given - will make addon path using its root
+                and addon name stored to metadata
+        :param addon_dir_name: Where to build addon.
+                This allows change default behavior if the AddonSystem passed
+                as path(will take this name instead of name stored in metadata)
+        :param baked: If True - will make "baked" addon
+                using "pybaked" library, but if it is not installed will
+                raise ValueError
+
+        :return: Path to built addon
+        """
         if not self._meta:
             raise BuildOrderError("No meta set")
 
@@ -276,14 +338,13 @@ class AddonBuilder:
         elif isinstance(path, str):
             path = Path(path)
 
-        path.mkdir()
+        if not baked:
+            return self._build_default(path)
 
-        meta = self._meta
-        meta.update(dict(module=self._package.main))
+        else:
+            if pybaked is None:
+                raise ValueError(
+                    'Cannot build "baked" addon: pybaked is not installed'
+                )
 
-        with (path / "addon.json").open("w", encoding="utf8") as metafile:
-            json.dump(meta, metafile, indent=2, ensure_ascii=False)
-
-        self._package.build(path, unpack=True)
-
-        return path
+            return self._build_baked(path)
