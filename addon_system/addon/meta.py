@@ -288,6 +288,9 @@ class AbstractAddonMeta(utils.ABCFirstParamSingleton):
 
         return cls(data, self)
 
+    def dict(self) -> dict[str, Any]:
+        return copy.deepcopy(self._data)
+
     def __getattr__(self, item):
         if item not in self._data:
             raise AttributeError(f"Metadata doesn't have {item} field")

@@ -1,3 +1,4 @@
+import shutil
 from typing import Union, Any, TypeVar
 from abc import abstractmethod
 from pathlib import Path
@@ -292,6 +293,24 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         """
         return max(os.path.getmtime(self._path), self.metadata.update_time)
 
+    @abstractmethod
+    def bake_to_file(self) -> Path:
+        """
+        "Bake" this addon to file using ``pybaked`` library
+
+        :return: "baked" addon file path
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def bake_to_bytes(self) -> bytes:
+        """
+        "Bake" this addon to bytes using ``pybaked`` library
+
+        :return: "baked" addon bytes
+        """
+        raise NotImplementedError
+
     def __eq__(self, other: Union[str, "Addon"]) -> bool:
         if isinstance(other, str):
             return self.metadata.id == other
@@ -447,6 +466,36 @@ class Addon(utils.FirstParamSingleton, AbstractAddon):
 
         return self._storage
 
+    def bake_to_file(self) -> Path:
+        """
+        "Bake" this addon to file using ``pybaked`` library
+
+        :return: "baked" addon file path
+        """
+        if not pybaked_installed:
+            raise ValueError("pybaked is not installed")
+
+        import pybaked
+
+        return pybaked.BakedMaker.from_package(
+            self.path, hash_content=True, metadata=self.metadata.dict()
+        ).file(self.metadata.name)
+
+    def bake_to_bytes(self) -> bytes:
+        """
+        "Bake" this addon to bytes using ``pybaked`` library
+
+        :return: "baked" addon bytes
+        """
+        if not pybaked_installed:
+            raise ValueError("pybaked is not installed")
+
+        import pybaked
+
+        return pybaked.BakedMaker.from_package(
+            self.path, hash_content=True, metadata=self.metadata.dict()
+        ).bytes()
+
 
 supported: list[type[AbstractAddon]] = [Addon]
 
@@ -540,6 +589,22 @@ if pybaked_installed:
 
         def storage(self):
             raise AddonInvalid("Baked addons doesn't support storages yet")
+
+        def bake_to_file(self) -> Path:
+            """
+            Copies this file and returns path to copy
+            """
+            path_to_file = Path(self.path.name)
+
+            shutil.copy(self.path, path_to_file)
+
+            return path_to_file
+
+        def bake_to_bytes(self) -> bytes:
+            """
+            Reads this file bytes and returns it
+            """
+            return self.path.read_bytes()
 
     supported.append(BakedAddon)
 

@@ -569,16 +569,18 @@ Library provides tools to create addons via terminal and code:
 `make-addon` is designed to create addons easily using terminal
 
 Parameters:  
--n, --name — Addon name(must be CamelCase because tool creates addon directory with the same name)  
--a, --authors — Comma separated author names  
--i, --id — Addon id (If not provided will be created using **first author name** + **"/"** + **addon name**)  
--m, --module — Set the main module name of this addon (Useful when creating from source code)  
--p, --package — Path to package that will be used as addon source  
--v, --version — Version of addon (Usually SemVer)  
--d, --description — Description of addon  
--D, --depends — Comma separated addon dependencies (in `pip freeze` format)  
--t, --template — Path to module template file (Will be used if no source package is provided)  
--f, --force — Force create addon (rewrites addon if exists)  
+-n / --name — Addon name(must be CamelCase because tool creates addon directory with the same name)  
+-a / --authors — Comma separated author names  
+-i / --id — Addon id (If not provided will be created using **first author name** + **"/"** + **addon name**)  
+-m / --module — Set the main module name of this addon (Useful when creating from source code)  
+-p / --package — Path to package that will be used as addon source  
+-v / --version — Version of addon (Usually SemVer)  
+-d / --description — Description of addon  
+-D / --depends — Comma separated addon dependencies (in `pip freeze` format)  
+-t / --template — Path to module template file (Will be used if no source package is provided)  
+-f / --force — Force create addon (rewrites addon if exists)  
+-b / --bake — Build "baked" addon using ``pybaked`` library. I Recommend
+use it in pair with --package parameter   
 place_to — Directory where addon will be created  
 
 
@@ -701,9 +703,14 @@ Here are the all methods and properties of semi-independent component Addon:
         - enabled — status of addon
 
       Get the addon status (not for independent usage)
-    - `enable()`
+    - `enable()`  
       Enable addon(not for independent usage)
-    - `disable()`
+    - `disable()`  
       Disable addon(not for independent usage)
+    - `bake_to_bytes()`  
+      "Bake" this addon to bytes using `pybaked` library. Returns bytes
+    - `bake_to_file()`  
+      "Bake" this addon to file using `pybaked` library. 
+      Returns path to created file
 
 # Thanks for using!
