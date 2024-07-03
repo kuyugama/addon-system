@@ -1,16 +1,16 @@
-import builtins
-import functools
-from abc import ABCMeta
-from hashlib import sha256
-import importlib
-import inspect
-from operator import methodcaller
-import sys
-import types
-import warnings
-from contextlib import contextmanager
-from pathlib import Path
 from typing import TypeVar, Type, cast, Optional
+from contextlib import contextmanager
+from operator import methodcaller
+from hashlib import sha256
+from pathlib import Path
+from abc import ABCMeta
+import importlib
+import functools
+import builtins
+import warnings
+import inspect
+import types
+import sys
 
 from addon_system.errors import AddonSystemException
 
