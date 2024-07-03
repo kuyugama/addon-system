@@ -318,7 +318,7 @@ class AbstractAddonMeta(utils.ABCFirstParamSingleton):
 
     def __str__(self):
         return (
-            f"AddonMeta<{self.id}>"
+            f"{type(self).__name__}<{self.id}>"
             f"(name={self.name!r}, "
             f"version={self.version!r}, "
             f"path={str(self._path.absolute())!r})"

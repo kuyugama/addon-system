@@ -324,13 +324,13 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
 
     def __str__(self):
         return (
-            f"{self.__class__.__name__}"
+            f"{type(self).__name__}"
             f"<{self.metadata.id}>"
             f"(name={self.metadata.name!r}, path={str(self._path)!r})"
         )
 
 
-class Addon(utils.FirstParamSingleton, AbstractAddon):
+class Addon(AbstractAddon):
     """Class-wrapper of addon. Semi-independent part of AddonSystem"""
 
     @staticmethod
@@ -502,7 +502,7 @@ supported: list[type[AbstractAddon]] = [Addon]
 if pybaked_installed:
     import pybaked
 
-    class BakedAddon(utils.FirstParamSingleton, AbstractAddon):
+    class BakedAddon(AbstractAddon):
         @staticmethod
         def validate_name(name: str) -> bool:
             return (

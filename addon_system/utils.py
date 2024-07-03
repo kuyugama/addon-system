@@ -44,8 +44,8 @@ class FirstParamSingletonMeta(type):
 
 class ABCFirstParamSingletonMeta(FirstParamSingletonMeta, ABCMeta):
     def __call__(cls, *args, **kwargs):
-        instance = super(FirstParamSingletonMeta, cls).__call__(*args, **kwargs)
-        super(ABCMeta, cls).__call__(*args, **kwargs)
+        instance = super().__call__(*args, **kwargs)
+        super(FirstParamSingletonMeta, cls).__call__(*args, **kwargs)
 
         return instance
 
