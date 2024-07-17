@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "addon-system"
-version = "1.2.14"
+version = "1.2.15"
 classifiers = ["Programming Language :: Python :: 3"]
 authors = [
     {name="KuyuGama", email="mail.kuyugama@gmail.com"}
@@ -30,7 +30,7 @@ addon = "addon_system.make_addon:main"
 make-addon = "addon_system.make_addon:main"
 
 [tool.bumpver]
-current_version = "1.2.14"
+current_version = "1.2.15"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message = "⏫ {old_version} → {new_version}"
 tag_message = "v{new_version}"
