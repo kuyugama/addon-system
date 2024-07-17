@@ -5,6 +5,30 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "addon-system"
+version = "1.2.14"
+classifiers = ["Programming Language :: Python :: 3"]
+authors = [
+    {name="KuyuGama", email="mail.kuyugama@gmail.com"}
+]
+requires-python = ">=3.9"
+description = "The AddonSystem library"
+
+[project.readme]
+file = "README.md"
+content-type = "text/markdown"
+
+[project.license]
+file = "LICENSE"
+
+[project.optional-dependencies]
+baked = ["pybaked==0.0.15"]
+
+[project.scripts]
+addon = "addon_system.make_addon:main"
+make-addon = "addon_system.make_addon:main"
+
 [tool.bumpver]
 current_version = "1.2.14"
 version_pattern = "MAJOR.MINOR.PATCH"
@@ -20,8 +44,11 @@ push = true
 [tool.bumpver.file_patterns]
 "pyproject.toml" = [
     'current_version = "{version}"',
+    'version = "{version}"'
 ]
-"setup.py" = [
-    'version="{version}"'
+"addon_system/__init__.py" = [
+    '__version__ = "{version}"'
 ]
 
+[tool.setuptools.packages.find]
+include=["addon_system", "addon_system.*"]
