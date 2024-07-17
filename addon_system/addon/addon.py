@@ -3,8 +3,8 @@ from abc import abstractmethod
 from pathlib import Path
 import importlib
 import string
-import shutil
 import types
+import time
 import os
 
 from addon_system.libraries.base_manager import BaseLibManager
@@ -26,6 +26,22 @@ except ImportError:
     pybaked_installed = False
 
 ModuleInterfaceType = TypeVar("ModuleInterfaceType", bound="ModuleInterface")
+
+
+def _unique_baked_file_name(directory_path: Path, origin: str) -> Path:
+    # Generate unique name using timestamp in hex
+    time_hex = hex(int(time.time()))[2:]
+    base_name = origin.split(".", 1)[0] + "_" + time_hex
+
+    name = base_name
+
+    copy_number = 1
+    # If that name already exists (how?) - add number of the copy to it
+    while (directory_path / (name + pybaked.protocol.EXTENSION)).exists():
+        name = base_name + "_" + hex(copy_number)[2:]
+        copy_number += 1
+
+    return directory_path / name
 
 
 class AbstractAddon(utils.ABCFirstParamSingleton):
@@ -294,7 +310,7 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         return max(os.path.getmtime(self._path), self.metadata.update_time)
 
     @abstractmethod
-    def bake_to_file(self) -> Path:
+    def bake_to_file(self, path: str | Path = None) -> Path:
         """
         "Bake" this addon to file using ``pybaked`` library
 
@@ -466,7 +482,7 @@ class Addon(AbstractAddon):
 
         return self._storage
 
-    def bake_to_file(self) -> Path:
+    def bake_to_file(self, path: str | Path = None) -> Path:
         """
         "Bake" this addon to file using ``pybaked`` library
 
@@ -477,9 +493,12 @@ class Addon(AbstractAddon):
 
         import pybaked
 
+        if path is None:
+            path = _unique_baked_file_name(Path(), self.metadata.name)
+
         return pybaked.BakedMaker.from_package(
             self.path, hash_content=True, metadata=self.metadata.dict()
-        ).file(self.metadata.name)
+        ).file(path)
 
     def bake_to_bytes(self) -> bytes:
         """
@@ -590,21 +609,34 @@ if pybaked_installed:
         def storage(self):
             raise AddonInvalid("Baked addons doesn't support storages yet")
 
-        def bake_to_file(self) -> Path:
+        def bake_to_file(self, path: str | Path = None) -> Path:
             """
             Copies this file and returns path to copy
             """
-            path_to_file = Path(self.path.name)
 
-            shutil.copy(self.path, path_to_file)
+            if path is None:
+                path = _unique_baked_file_name(
+                    Path(), self.path.name.split(".", 1)[0]
+                )
 
-            return path_to_file
+            return (
+                pybaked.BakedReader(self.path)
+                .to_maker()
+                .update_metadata(self.metadata.dict())
+                .file(path)
+            )
 
         def bake_to_bytes(self) -> bytes:
             """
             Reads this file bytes and returns it
             """
-            return self.path.read_bytes()
+
+            return (
+                pybaked.BakedReader(self.path)
+                .to_maker()
+                .update_metadata(self.metadata.dict())
+                .bytes()
+            )
 
     supported.append(BakedAddon)
 
