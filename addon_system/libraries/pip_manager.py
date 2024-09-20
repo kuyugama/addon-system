@@ -130,9 +130,9 @@ class PipLibManager(BaseLibManager):
 
         if len(libraries):
             out = subprocess.getoutput(
-                str(self._pip_executable.absolute())
+                str(self._pip_executable)
                 + " install "
-                + " ".join(libraries)
+                + " ".join(f'"{lib}"' for lib in libraries)
             )
             if "ERROR" in out:
                 raise RuntimeError(
