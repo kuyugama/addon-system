@@ -395,7 +395,7 @@ class Addon(AbstractAddon):
     def _import(self, reload: bool = False) -> types.ModuleType:
         """Imports or reloads addon's module"""
         if reload and self._module:
-            return utils.recursive_reload_module(self._module)
+            return utils.reload_addon_modules(self)
 
         return importlib.import_module(self.module_import_path)
 
@@ -549,7 +549,7 @@ if pybaked_installed:
 
         def _import(self, reload: bool = False) -> types.ModuleType:
             if reload and self._module:
-                return utils.recursive_reload_module(self._module)
+                return utils.reload_addon_modules(self)
 
             pybaked.loader.init()
 

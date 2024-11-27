@@ -1,3 +1,4 @@
+from addon_system.errors import AddonSystemException
 from typing import TypeVar, Type, cast, Optional
 from contextlib import contextmanager
 from operator import methodcaller
@@ -9,10 +10,13 @@ import functools
 import builtins
 import warnings
 import inspect
+import typing
 import types
 import sys
 
-from addon_system.errors import AddonSystemException
+
+if typing.TYPE_CHECKING:
+    from addon_system.addon.addon import AbstractAddon
 
 T = TypeVar("T")
 
@@ -113,6 +117,35 @@ def recursive_reload_module(
     return importlib.reload(module)
 
 
+def get_submodules(module: types.ModuleType) -> list[types.ModuleType]:
+    modules: list[types.ModuleType] = [module]
+
+    parent = Path(module.__file__).parent
+
+    for value in vars(module).values():
+        if not isinstance(value, types.ModuleType):
+            continue
+
+        if not Path(value.__file__).is_relative_to(parent):
+            continue
+
+        modules += get_submodules(value)
+
+    return modules
+
+
+def reload_addon_modules(addon: "AbstractAddon"):
+    try:
+        module = addon.module()
+
+        modules = get_submodules(module)
+
+        for module in modules:
+            importlib.reload(module)
+    except AddonSystemException:
+        pass
+
+
 def string_contains(parent: str, sub: str, case_sensitive: bool = True) -> bool:
     if not case_sensitive:
         sub = sub.lower()
@@ -202,7 +235,7 @@ def hash_string_tuple(tuple_: tuple[str, ...]):
 
 
 @functools.lru_cache
-def find_addon(path: Path | str) -> Optional["Addon"]:
+def find_addon(path: Path | str) -> Optional["AbstractAddon"]:
     if isinstance(path, str):
         path = Path(path)
 
