@@ -346,7 +346,7 @@ class Addon(AbstractAddon):
     @staticmethod
     def validate_path(path: Path) -> bool:
         """Validates addon's path"""
-        return path.is_dir() and Addon.validate_name(path.name)
+        return path.is_dir() and Addon.validate_name(path.name) and meta.AddonMeta.validate_path(path / "addon.json")
 
     @staticmethod
     def validate_directory_name(name: str) -> bool:
@@ -366,8 +366,8 @@ class Addon(AbstractAddon):
         return True
 
     def __init__(self, path: Path):
-        if not path.is_dir():
-            raise AddonInvalid("Addons must be dirs")
+        if not self.validate_path(path):
+            raise AddonInvalid("Invalid addon path")
 
         super().__init__(path, path / "addon.json")
 
