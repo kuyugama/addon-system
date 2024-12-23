@@ -42,9 +42,7 @@ class AddonStorage:
         with self._path.open("w", encoding="utf8") as file:
             json.dump(self._map, file, ensure_ascii=False, indent=2)
 
-    def get(
-        self, name: str, default: Any = None
-    ) -> int | str | dict | list | float | bool:
+    def get(self, name: str, default: Any = None) -> int | str | dict | list | float | bool:
         if name not in self._map:
             return default
         return self._map[name]

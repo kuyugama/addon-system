@@ -48,10 +48,13 @@ class AddonSystemStorage(FirstParamSingleton):
 
         stored_addon = self.get_stored_addon(addon.metadata.id)
 
+        if dependency_check_result is None and stored_addon is not None:
+            dependency_check_result = stored_addon.last_dependency_check.satisfied
+
         # Do not rewrite valid cache record
         if stored_addon is not None and (
-            enabled is None
-            and dependency_check_result is None
+            enabled == stored_addon.enabled
+            and dependency_check_result == stored_addon.last_dependency_check.satisfied
             and stored_addon.last_dependency_check.is_valid(addon)
         ):
             return
@@ -60,12 +63,10 @@ class AddonSystemStorage(FirstParamSingleton):
             enabled = False
 
         if dependency_check_result is None:
-            dependency_check_result = self._system.check_dependencies(
-                addon, False
-            )
+            dependency_check_result = self._system.check_dependencies(addon, False)
 
         self._map["addons"][addon.metadata.id] = asdict(
-            StoredAddon(
+            StoredAddon(  # type: ignore
                 enabled,
                 DependencyCheckResult(
                     dependency_check_result,

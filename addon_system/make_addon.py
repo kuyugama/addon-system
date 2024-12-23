@@ -22,18 +22,12 @@ parse.add_argument(
     required=True,
 )
 parse.add_argument("-m", "--module", help="Addon main module", default=None)
-parse.add_argument(
-    "-p", "--package", help="Path to source code package", default=None
-)
+parse.add_argument("-p", "--package", help="Path to source code package", default=None)
 parse.add_argument("-i", "--id", help="Addon id", default=None)
 parse.add_argument("-v", "--version", help="Addon version", default="0.0.1")
 parse.add_argument("-d", "--description", help="Addon description", default="")
-parse.add_argument(
-    "-D", "--depends", help='Addon dependencies separated by ", "', default=None
-)
-parse.add_argument(
-    "-t", "--template", help="Addon module template path", default=None
-)
+parse.add_argument("-D", "--depends", help='Addon dependencies separated by ", "', default=None)
+parse.add_argument("-t", "--template", help="Addon module template path", default=None)
 parse.add_argument(
     "-f",
     "--force",
@@ -55,9 +49,7 @@ parse.add_argument(
     default=False,
     action="store_true",
 )
-parse.add_argument(
-    "place_to", help="Path to directory in which create addon", default="."
-)
+parse.add_argument("place_to", help="Path to directory in which create addon", default=".")
 
 USE_COLORS = True
 
@@ -116,9 +108,7 @@ def main() -> int:
     builder = AddonBuilder()
 
     if not Addon.validate_name(args.name):
-        print_error(
-            "Addon name must be in ascii letters and can be in CamelCase"
-        )
+        print_error("Addon name must be in ascii letters and can be in CamelCase")
         return 1
 
     authors = args.authors.replace(", ", ",").split(",")
@@ -134,11 +124,7 @@ def main() -> int:
         id=id_,
         version=args.version,
         description=args.description,
-        depends=(
-            args.depends.replace(", ", ",").split(",")
-            if args.depends is not None
-            else []
-        ),
+        depends=(args.depends.replace(", ", ",").split(",") if args.depends is not None else []),
     )
 
     root_dir = Path(args.place_to)
@@ -196,15 +182,11 @@ def main() -> int:
     elif args.module:
         print(f"Using {green(args.module)} as main module")
         builder.package(
-            AddonPackageBuilder()
-            .add(StringModule(module, args.module))
-            .set_main(args.module)
+            AddonPackageBuilder().add(StringModule(module, args.module)).set_main(args.module)
         )
     else:
         print(f"Using {green('__init__.py')} as main module")
-        builder.package(
-            AddonPackageBuilder().add(StringModule(module, "__init__"))
-        )
+        builder.package(AddonPackageBuilder().add(StringModule(module, "__init__")))
 
     if args.force and addon_path.exists():
         if addon_path.is_dir():
@@ -214,9 +196,7 @@ def main() -> int:
 
     addon_path = str(builder.build(addon_path, baked=args.bake))
 
-    print(
-        f"Successfully created addon {green(args.name)}[{yellow(id_)}] at {cyan(addon_path)}"
-    )
+    print(f"Successfully created addon {green(args.name)}[{yellow(id_)}] at {cyan(addon_path)}")
 
     return 0
 

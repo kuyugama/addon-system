@@ -24,9 +24,7 @@ class AddonMetaInvalid(AddonSystemException):
         self.path = path
 
     def __str__(self):
-        return "{message} <==> Meta path: {path}".format(
-            path=self.path, message=self.message
-        )
+        return "{message} <==> Meta path: {path}".format(path=self.path, message=self.message)
 
 
 class AddonInvalid(AddonSystemException):

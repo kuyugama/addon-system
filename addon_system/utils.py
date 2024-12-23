@@ -38,9 +38,7 @@ class FirstParamSingletonMeta(type):
             if hasattr(instance, "__reinit__"):
                 instance.__reinit__(*args, **kwargs)
         else:
-            instance = super(FirstParamSingletonMeta, cls).__call__(
-                *args, **kwargs
-            )
+            instance = super(FirstParamSingletonMeta, cls).__call__(*args, **kwargs)
             by_param[param] = instance
 
         return instance
@@ -154,9 +152,7 @@ def string_contains(parent: str, sub: str, case_sensitive: bool = True) -> bool:
     return sub in parent
 
 
-def string_iterable_contains(
-    iterable: list[str], sub: str, case_sensitive: bool = True
-) -> bool:
+def string_iterable_contains(iterable: list[str], sub: str, case_sensitive: bool = True) -> bool:
     if not case_sensitive:
         sub = sub.lower()
         iterable = map(methodcaller("lower"), iterable)
@@ -175,19 +171,13 @@ def deprecated(msg: str, version: str):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            warnings.simplefilter(
-                "always", DeprecationWarning
-            )  # turn off warning filter
+            warnings.simplefilter("always", DeprecationWarning)  # turn off warning filter
             warnings.warn(
-                "{} is deprecated since {}: {}".format(
-                    func.__name__, version, msg
-                ),
+                "{} is deprecated since {}: {}".format(func.__name__, version, msg),
                 category=DeprecationWarning,
                 stacklevel=2,
             )
-            warnings.simplefilter(
-                "default", DeprecationWarning
-            )  # reset warning filter
+            warnings.simplefilter("default", DeprecationWarning)  # reset warning filter
 
             return func(*args, **kwargs)
 
@@ -264,9 +254,7 @@ def resolve_runtime(cls: type[T], name: str = None) -> T:
     addon = find_addon(called_from.filename)
 
     if not addon:
-        raise ValueError(
-            "resolve_runtime can be called only from addon modules"
-        )
+        raise ValueError("resolve_runtime can be called only from addon modules")
 
     if name is None:
         # Get a name of the variable
@@ -278,8 +266,6 @@ def resolve_runtime(cls: type[T], name: str = None) -> T:
     value = addon.namespace[name]
 
     if not isinstance(value, cls):
-        raise TypeError(
-            f'Name "{name}" contains {type(value)}, but requested type is {cls}'
-        )
+        raise TypeError(f'Name "{name}" contains {type(value)}, but requested type is {cls}')
 
     return cast(cls, value)

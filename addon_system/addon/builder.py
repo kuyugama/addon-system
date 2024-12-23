@@ -80,11 +80,7 @@ class AddonPackageBuilder:
                 builder.add(AddonPackageBuilder.from_path(subpath))
 
             if subpath.is_file() and subpath.suffix == ".py":
-                builder.add(
-                    StringModule(
-                        subpath.read_text(encoding="utf-8"), subpath.name
-                    )
-                )
+                builder.add(StringModule(subpath.read_text(encoding="utf-8"), subpath.name))
 
                 # If there are __init__.py it may be main module of this package
                 if subpath.name == "__init__.py":
@@ -92,9 +88,7 @@ class AddonPackageBuilder:
 
         return builder
 
-    def add(
-        self, module: Union[StringModule, ModuleType, "AddonPackageBuilder"]
-    ):
+    def add(self, module: Union[StringModule, ModuleType, "AddonPackageBuilder"]):
         """
         Add module or child package to addon package
         """
@@ -343,8 +337,6 @@ class AddonBuilder:
 
         else:
             if pybaked is None:
-                raise ValueError(
-                    'Cannot build "baked" addon: pybaked is not installed'
-                )
+                raise ValueError('Cannot build "baked" addon: pybaked is not installed')
 
             return self._build_baked(path)
