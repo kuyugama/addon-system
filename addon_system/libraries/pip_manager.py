@@ -31,9 +31,7 @@ def split_dependency(dependency: str) -> tuple[str, str]:
         if char in "><=!~":
             return dependency[:index], dependency[index:]
 
-    raise ValueError(
-        f"Invalid dependency {dependency}: Not found version specification"
-    )
+    raise ValueError(f"Invalid dependency {dependency}: Not found version specification")
 
 
 def find_operators(
@@ -78,8 +76,8 @@ class DependencyComparison:
         name, clause = split_dependency(dependency)
         self.name: str = name.strip()
 
-        self.clauses: list[tuple[Callable[[Any, Any], bool], Version]] = (
-            find_operators(map(lambda c: c.strip(), clause.split(",")))
+        self.clauses: list[tuple[Callable[[Any, Any], bool], Version]] = find_operators(
+            map(lambda c: c.strip(), clause.split(","))
         )
 
     def is_compatible(self, version: str | Version) -> bool:
@@ -130,14 +128,10 @@ class PipLibManager(BaseLibManager):
 
         if len(libraries):
             out = subprocess.getoutput(
-                str(self._pip_executable)
-                + " install "
-                + " ".join(f'"{lib}"' for lib in libraries)
+                str(self._pip_executable) + " install " + " ".join(f'"{lib}"' for lib in libraries)
             )
             if "ERROR" in out:
-                raise RuntimeError(
-                    "Error occurred while installing: {}".format(out)
-                )
+                raise RuntimeError("Error occurred while installing: {}".format(out))
 
         # Drop installed libraries cache
         self._installed_libraries = None
@@ -153,9 +147,7 @@ class PipLibManager(BaseLibManager):
         """
 
         if force or self._installed_libraries is None:
-            pip_out = subprocess.getoutput(
-                str(self._pip_executable.absolute()) + " freeze"
-            )
+            pip_out = subprocess.getoutput(str(self._pip_executable.absolute()) + " freeze")
 
             libs = {}
 

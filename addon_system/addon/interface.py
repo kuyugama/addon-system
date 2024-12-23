@@ -67,19 +67,17 @@ class ModuleInterface:
 
     def __init__(self, addon, *load_args, **load_kwargs):
         called_from = inspect.stack()[1]
-        from addon_system import Addon
+        from addon_system.addon.addon import AbstractAddon
 
-        if not isinstance(addon, Addon):
+        if not isinstance(addon, AbstractAddon):
             raise TypeError(f"Invalid addon type provided: {type(addon)}")
 
         # Check caller
         if (
-            called_from.filename != inspect.getfile(Addon)
+            called_from.filename != inspect.getfile(AbstractAddon)
             and called_from.function != "interface"
         ):
-            raise RuntimeError(
-                "Can be created only from addon interface() method"
-            )
+            raise RuntimeError("Can be created only from addon interface() method")
 
         self._addon = addon
         self._module = addon.module()
@@ -189,9 +187,7 @@ class ModuleInterface:
         ref_count = sys.getrefcount(self._module_or_raise()) - 1
 
         if ref_count > 4:
-            raise RuntimeError(
-                "Cannot unload: more than 4 refs to module found"
-            )
+            raise RuntimeError("Cannot unload: more than 4 refs to module found")
 
         handler = self.get_func("on_unload")
 

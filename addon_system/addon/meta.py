@@ -1,4 +1,4 @@
-from typing import Any, TypeVar
+from typing import Any, TypeVar, overload
 from abc import abstractmethod
 from json import load, dump
 from pathlib import Path
@@ -71,9 +71,7 @@ class AddonMetaExtra:
             data[key] = value
 
         if not self.validate(data):
-            raise AddonMetaInvalid(
-                "Invalid extra data provided in metafile", meta.path
-            )
+            raise AddonMetaInvalid("Invalid extra data provided in metafile", meta.path)
 
     @property
     def metadata(self) -> "AbstractAddonMeta":
@@ -90,9 +88,7 @@ class AddonMetaExtra:
     def save(self):
         """Saves extra data changes to metafile"""
         if not self._metadata.can_be_saved:
-            raise AddonSystemException(
-                "Cannot write extra info to file. Metadata cannot be saved"
-            )
+            raise AddonSystemException("Cannot write extra info to file. Metadata cannot be saved")
 
         self._metadata.save()
 
@@ -131,8 +127,7 @@ class AddonMetaExtra:
             return
 
         type_invalid = TypeError(
-            f"Cannot set value of type {type(value)}. "
-            f"Is not JSON serializable or invalid."
+            f"Cannot set value of type {type(value)}. " f"Is not JSON serializable or invalid."
         )
 
         try:
@@ -213,9 +208,7 @@ class AbstractAddonMeta(utils.ABCFirstParamSingleton):
         """Addon metafile update time"""
         return os.path.getmtime(self._path)
 
-    def _required_fields(
-        self, required_fields: list[str], content: dict[str, Any]
-    ):
+    def _required_fields(self, required_fields: list[str], content: dict[str, Any]):
         """Checks if all required fields are set"""
         for field in required_fields:
             if field not in content:
@@ -276,13 +269,17 @@ class AbstractAddonMeta(utils.ABCFirstParamSingleton):
         """
         raise NotImplementedError
 
+    @overload
+    def extra(self, cls: None = None) -> AddonMetaExtra: ...
+
+    @overload
+    def extra(self, cls: type[E]) -> E: ...
+
     def extra(self, cls: type[E] = AddonMetaExtra) -> E:
         """Creates proxy for extra data in metafile"""
 
         if not issubclass(cls, AddonMetaExtra):
-            raise TypeError(
-                f"Cannot create AddonMetaExtraProxy from type {type(cls)}"
-            )
+            raise TypeError(f"Cannot create AddonMetaExtraProxy from type {type(cls)}")
 
         data = self._data.setdefault("extra", {})
 
@@ -296,9 +293,7 @@ class AbstractAddonMeta(utils.ABCFirstParamSingleton):
             raise AttributeError(f"Metadata doesn't have {item} field")
 
         if item not in field_types:
-            raise ValueError(
-                f"Cannot get {item} - use AddonMeta.extra to get/set custom values"
-            )
+            raise ValueError(f"Cannot get {item} - use AddonMeta.extra to get/set custom values")
 
         # If metafile is updated - read changes and then get the value
         if self.update_time > self._read_time:

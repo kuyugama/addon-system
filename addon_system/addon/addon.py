@@ -84,9 +84,7 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         from addon_system import AddonSystem
 
         if not isinstance(system, AddonSystem):
-            raise TypeError(
-                "Expected AddonSystem, but got {}".format(type(system))
-            )
+            raise TypeError("Expected AddonSystem, but got {}".format(type(system)))
 
         if not self._path.is_relative_to(system.root):
             raise AddonSystemException(
@@ -99,16 +97,12 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         from addon_system import AddonSystem
 
         if not isinstance(system, AddonSystem):
-            raise TypeError(
-                "Expected AddonSystem, but got {}".format(type(system))
-            )
+            raise TypeError("Expected AddonSystem, but got {}".format(type(system)))
 
         return self._path.is_relative_to(system.root)
 
     @abstractmethod
-    def module(
-        self, lib_manager: BaseLibManager = None, reload: bool = False
-    ) -> types.ModuleType:
+    def module(self, lib_manager: BaseLibManager = None, reload: bool = False) -> types.ModuleType:
         """
         Returns addon's main module.
 
@@ -395,7 +389,7 @@ class Addon(AbstractAddon):
     def _import(self, reload: bool = False) -> types.ModuleType:
         """Imports or reloads addon's module"""
         if reload and self._module:
-            return utils.recursive_reload_module(self._module)
+            return utils.reload_addon_modules(self)
 
         return importlib.import_module(self.module_import_path)
 
@@ -524,10 +518,7 @@ if pybaked_installed:
     class BakedAddon(AbstractAddon):
         @staticmethod
         def validate_name(name: str) -> bool:
-            return (
-                name.endswith(".py.baked")
-                and name.split(".", 1)[0].isidentifier()
-            )
+            return name.endswith(".py.baked") and name.split(".", 1)[0].isidentifier()
 
         @staticmethod
         def validate_path(path: Path) -> bool:
@@ -549,7 +540,7 @@ if pybaked_installed:
 
         def _import(self, reload: bool = False) -> types.ModuleType:
             if reload and self._module:
-                return utils.recursive_reload_module(self._module)
+                return utils.reload_addon_modules(self)
 
             pybaked.loader.init()
 
@@ -615,9 +606,7 @@ if pybaked_installed:
             """
 
             if path is None:
-                path = _unique_baked_file_name(
-                    Path(), self.path.name.split(".", 1)[0]
-                )
+                path = _unique_baked_file_name(Path(), self.path.name.split(".", 1)[0])
 
             return (
                 pybaked.BakedReader(self.path)

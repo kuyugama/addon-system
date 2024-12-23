@@ -1,3 +1,4 @@
+from addon_system.errors import AddonSystemException
 from typing import TypeVar, Type, cast, Optional
 from contextlib import contextmanager
 from operator import methodcaller
@@ -9,10 +10,13 @@ import functools
 import builtins
 import warnings
 import inspect
+import typing
 import types
 import sys
 
-from addon_system.errors import AddonSystemException
+
+if typing.TYPE_CHECKING:
+    from addon_system.addon.addon import AbstractAddon
 
 T = TypeVar("T")
 
@@ -34,9 +38,7 @@ class FirstParamSingletonMeta(type):
             if hasattr(instance, "__reinit__"):
                 instance.__reinit__(*args, **kwargs)
         else:
-            instance = super(FirstParamSingletonMeta, cls).__call__(
-                *args, **kwargs
-            )
+            instance = super(FirstParamSingletonMeta, cls).__call__(*args, **kwargs)
             by_param[param] = instance
 
         return instance
@@ -113,6 +115,35 @@ def recursive_reload_module(
     return importlib.reload(module)
 
 
+def get_submodules(module: types.ModuleType) -> list[types.ModuleType]:
+    modules: list[types.ModuleType] = [module]
+
+    parent = Path(module.__file__).parent
+
+    for value in vars(module).values():
+        if not isinstance(value, types.ModuleType):
+            continue
+
+        if not Path(value.__file__).is_relative_to(parent):
+            continue
+
+        modules += get_submodules(value)
+
+    return modules
+
+
+def reload_addon_modules(addon: "AbstractAddon"):
+    try:
+        module = addon.module()
+
+        modules = get_submodules(module)
+
+        for module in modules:
+            importlib.reload(module)
+    except AddonSystemException:
+        pass
+
+
 def string_contains(parent: str, sub: str, case_sensitive: bool = True) -> bool:
     if not case_sensitive:
         sub = sub.lower()
@@ -121,9 +152,7 @@ def string_contains(parent: str, sub: str, case_sensitive: bool = True) -> bool:
     return sub in parent
 
 
-def string_iterable_contains(
-    iterable: list[str], sub: str, case_sensitive: bool = True
-) -> bool:
+def string_iterable_contains(iterable: list[str], sub: str, case_sensitive: bool = True) -> bool:
     if not case_sensitive:
         sub = sub.lower()
         iterable = map(methodcaller("lower"), iterable)
@@ -142,19 +171,13 @@ def deprecated(msg: str, version: str):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            warnings.simplefilter(
-                "always", DeprecationWarning
-            )  # turn off warning filter
+            warnings.simplefilter("always", DeprecationWarning)  # turn off warning filter
             warnings.warn(
-                "{} is deprecated since {}: {}".format(
-                    func.__name__, version, msg
-                ),
+                "{} is deprecated since {}: {}".format(func.__name__, version, msg),
                 category=DeprecationWarning,
                 stacklevel=2,
             )
-            warnings.simplefilter(
-                "default", DeprecationWarning
-            )  # reset warning filter
+            warnings.simplefilter("default", DeprecationWarning)  # reset warning filter
 
             return func(*args, **kwargs)
 
@@ -202,7 +225,7 @@ def hash_string_tuple(tuple_: tuple[str, ...]):
 
 
 @functools.lru_cache
-def find_addon(path: Path | str) -> Optional["Addon"]:
+def find_addon(path: Path | str) -> Optional["AbstractAddon"]:
     if isinstance(path, str):
         path = Path(path)
 
@@ -231,9 +254,7 @@ def resolve_runtime(cls: type[T], name: str = None) -> T:
     addon = find_addon(called_from.filename)
 
     if not addon:
-        raise ValueError(
-            "resolve_runtime can be called only from addon modules"
-        )
+        raise ValueError("resolve_runtime can be called only from addon modules")
 
     if name is None:
         # Get a name of the variable
@@ -245,8 +266,6 @@ def resolve_runtime(cls: type[T], name: str = None) -> T:
     value = addon.namespace[name]
 
     if not isinstance(value, cls):
-        raise TypeError(
-            f'Name "{name}" contains {type(value)}, but requested type is {cls}'
-        )
+        raise TypeError(f'Name "{name}" contains {type(value)}, but requested type is {cls}')
 
     return cast(cls, value)

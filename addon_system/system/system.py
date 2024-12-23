@@ -53,9 +53,7 @@ class AddonSystem(FirstParamSingleton):
                     continue
 
                 if addon.metadata.id in ids:
-                    raise DuplicatedAddon(
-                        "Found multiple addons with the same id"
-                    )
+                    raise DuplicatedAddon("Found multiple addons with the same id")
 
                 self._storage.save_addon(addon)
 
@@ -65,9 +63,7 @@ class AddonSystem(FirstParamSingleton):
 
                 ids.append(addon.metadata.id)
             except (AddonInvalid, AddonMetaInvalid) as e:
-                raise AddonSystemException(
-                    f"Invalid addon in root. Cause: {path}"
-                ) from e
+                raise AddonSystemException(f"Invalid addon in root. Cause: {path}") from e
 
     def get_addon_by_id(self, id_: str) -> Union[AbstractAddon, None, NoReturn]:
         """Retrieves addon by its id"""
@@ -78,8 +74,7 @@ class AddonSystem(FirstParamSingleton):
     def get_addon(self, addon: str | AbstractAddon) -> AbstractAddon:
         if isinstance(addon, AbstractAddon) and not addon.is_in_root(self):
             raise AddonInvalid(
-                "Passed addon is not related to this system, "
-                "this may cause unexpected problems"
+                "Passed addon is not related to this system, " "this may cause unexpected problems"
             )
 
         if isinstance(addon, str):
@@ -124,8 +119,7 @@ class AddonSystem(FirstParamSingleton):
             # If required addon status is not equal to stored - skip addon
             if (
                 enabled is not None
-                and enabled
-                != self._storage.get_stored_addon(addon.metadata.id).enabled
+                and enabled != self._storage.get_stored_addon(addon.metadata.id).enabled
             ):
                 continue
 
@@ -191,9 +185,7 @@ class AddonSystem(FirstParamSingleton):
             ):
                 return stored_addon.last_dependency_check.satisfied
             else:
-                result = self._lib_manager.check_dependencies(
-                    addon.metadata.depends
-                )
+                result = self._lib_manager.check_dependencies(addon.metadata.depends)
 
                 # Save dependency check result to cache
                 self._storage.save_addon(addon, None, result)
