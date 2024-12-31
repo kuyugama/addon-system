@@ -1,4 +1,4 @@
-from typing import Union, Any, TypeVar
+from typing import Union, TypeVar
 from abc import abstractmethod
 from pathlib import Path
 import importlib
@@ -9,6 +9,7 @@ import os
 
 from addon_system.libraries.base_manager import BaseLibManager
 from .interface import ModuleInterface, unload_module
+from .namespace import AddonNamespace
 from addon_system import utils
 from . import meta
 
@@ -78,7 +79,7 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         self._system: AddonSystem | None = None
         self._storage: AddonStorage | None = None
 
-        self._namespace: dict[str, Any] | None = None
+        self._namespace: AddonNamespace = AddonNamespace(self)
 
     def install_system(self, system) -> None:
         from addon_system import AddonSystem
@@ -102,7 +103,12 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         return self._path.is_relative_to(system.root)
 
     @abstractmethod
-    def module(self, lib_manager: BaseLibManager = None, reload: bool = False) -> types.ModuleType:
+    def module(
+        self,
+        lib_manager: BaseLibManager = None,
+        reload: bool = False,
+        builtin_injection: bool = False,
+    ) -> types.ModuleType:
         """
         Returns addon's main module.
 
@@ -118,6 +124,7 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         :param lib_manager: Library manager, that will
                 be used to check addon's dependencies
         :param reload: Whether reload addon's main module or not
+        :param builtin_injection: Whether inject namespace values to builtins (Optional and deprecated since 1.2.19, will be removed at 1.3.0)
 
         :return: Addon's main module
         """
@@ -248,7 +255,7 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         return self._path
 
     @property
-    def namespace(self) -> dict[str, Any] | None:
+    def namespace(self) -> AddonNamespace:
         """Get addon's namespace"""
         return self._namespace
 
@@ -346,7 +353,11 @@ class Addon(AbstractAddon):
     @staticmethod
     def validate_path(path: Path) -> bool:
         """Validates addon's path"""
-        return path.is_dir() and Addon.validate_name(path.name) and meta.AddonMeta.validate_path(path / "addon.json")
+        return (
+            path.is_dir()
+            and Addon.validate_name(path.name)
+            and meta.AddonMeta.validate_path(path / "addon.json")
+        )
 
     @staticmethod
     def validate_directory_name(name: str) -> bool:
@@ -397,25 +408,8 @@ class Addon(AbstractAddon):
         self,
         lib_manager: BaseLibManager = None,
         reload: bool = False,
+        builtin_injection: bool = False,
     ) -> types.ModuleType:
-        """
-        Returns addon's main module.
-
-        Import's if not, reloads if ``reload`` set to True.
-
-        If not system installed - requires ``lib_manager`` to be passed
-
-        If dependencies is not satisfied - raises AddonImportError
-
-        To set names that can be accessed through module -
-        update namespace property contents
-
-        :param lib_manager: Library manager, that will
-                be used to check addon's dependencies
-        :param reload: Whether reload addon's main module or not
-
-        :return: Addon's main module
-        """
 
         if self._module and not reload:
             return self._module
@@ -423,8 +417,11 @@ class Addon(AbstractAddon):
         if not self.check_dependencies(lib_manager):
             raise AddonImportError("Addon dependencies is not satisfied")
 
-        if self._namespace is not None:
-            with utils.replace_builtins(**self._namespace):
+        if not self._namespace.empty() and builtin_injection:
+            utils.warn_deprecated(
+                "Value injection via builtins is deprecated since 1.2.19 and will be removed in 1.3.0"
+            )
+            with utils.replace_builtins(**self._namespace.raw()):
                 module = self._import(reload=reload)
 
             for name, value in self._namespace.items():
@@ -547,7 +544,10 @@ if pybaked_installed:
             return importlib.import_module(self.module_import_path)
 
         def module(
-            self, lib_manager: BaseLibManager = None, reload: bool = False
+            self,
+            lib_manager: BaseLibManager = None,
+            reload: bool = False,
+            builtin_injection: bool = False,
         ) -> types.ModuleType:
             if not reload and self._module:
                 return self._module
@@ -555,8 +555,11 @@ if pybaked_installed:
             if not self.check_dependencies(lib_manager):
                 raise AddonImportError("Addon dependencies is not satisfied")
 
-            if self._namespace is not None:
-                with utils.replace_builtins(**self._namespace):
+            if not self._namespace.empty() and builtin_injection:
+                utils.warn_deprecated(
+                    "Value injection via builtins is deprecated since 1.2.19 and will be removed in 1.3.0"
+                )
+                with utils.replace_builtins(**self._namespace.raw()):
                     module = self._import(reload=reload)
 
                 for name, value in self._namespace.items():
