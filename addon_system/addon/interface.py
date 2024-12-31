@@ -1,12 +1,18 @@
-import inspect
-import sys
-import types
-import warnings
 from collections.abc import Sequence
 from typing import Any
+import warnings
+import inspect
+import typing
+import types
+import sys
 
-from addon_system import utils
+from addon_system.libraries.base_manager import BaseLibManager
 from addon_system.utils import deprecated
+from addon_system import utils
+from ..errors import AddonSystemException
+
+if typing.TYPE_CHECKING:
+    from .addon import AbstractAddon
 
 # Contains all modules used by all addons
 # In a format: module instance => list of addons that uses this module
@@ -65,7 +71,7 @@ class ModuleInterface:
         interface.unload()
     """
 
-    def __init__(self, addon, *load_args, **load_kwargs):
+    def __init__(self, addon: "AbstractAddon", lib_manager: BaseLibManager):
         called_from = inspect.stack()[1]
         from addon_system.addon.addon import AbstractAddon
 
@@ -79,12 +85,13 @@ class ModuleInterface:
         ):
             raise RuntimeError("Can be created only from addon interface() method")
 
+        # Reason for lib_manager to be "public" is to allow(haha, can i forbid?) developers to change it
+        self.lib_manager = lib_manager
+
         self._addon = addon
-        self._module = addon.module()
+        self._module = None
 
         self._used_modules: list[types.ModuleType] = []
-
-        self._load(load_args, load_kwargs)
 
     @property
     def module_loaded(self) -> bool:
@@ -93,8 +100,8 @@ class ModuleInterface:
     def _module_or_raise(self):
         if not self.module_loaded:
             raise RuntimeError(
-                "Module has been unloaded! "
-                f"Recreate interface instance with addon.interface(cls={type(self).__name__})"
+                "Module is not loaded! "
+                f"Load module with interface.load()"
             )
 
         return self._module
@@ -148,21 +155,24 @@ class ModuleInterface:
     def _get_func(self, name: str):
         return self.get_func(name)
 
-    def _load(self, args: tuple[Any, ...], kwargs: dict[str, Any]):
+    def load(self, *args: Any, **kwargs: Any):
         """
-        Calls on_load module method and saves returned
-        modules to unload it when unload method will be called
+        Loads module and calls on_load callback
         """
+        if self.module_loaded:
+            raise AddonSystemException("Module already loaded")
+
+        self._module = self._addon.module(self.lib_manager)
 
         callback = self.get_func("on_load")
 
         if callback is None:
-            return
+            return self
 
         modules = callback(*args, **kwargs)
 
         if not isinstance(modules, Sequence):
-            return
+            return self
 
         for module in modules:
             if not inspect.ismodule(module):
@@ -173,6 +183,8 @@ class ModuleInterface:
                 addons.append(self._addon)
 
             self._used_modules.append(module)
+
+        return self
 
     def unload(self, *args, **kwargs):
         """

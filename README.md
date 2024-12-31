@@ -506,10 +506,12 @@ addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 # Value injection can be achieved by using addon.namespace dictionary
 addon.namespace.update(this=addon)
 
-interface = addon.interface(
-    MyInterface,
+interface = addon.interface(MyInterface)
+
+# load module and call on_load callback function inside this module
+interface.load(
     "supported on_load positional argument",
-    kwd="supported on_load keyword argument",
+    kwd="supported on_load keyword argument"
 )
 
 if "smth" in interface.get_supported_events():
@@ -553,7 +555,7 @@ addon.unload_module()
 # In case of usage ModuleInterface, it will try to unload 
 # all used modules by this addon(addon's module must return 
 # a list of the modules in on_load method)
-interface = addon.interface(ModuleInterface)
+interface = addon.interface(ModuleInterface).load()
 
 # Will try to unload all used modules by its addon
 interface.unload("Argument passed to on_unload module method")
@@ -683,12 +685,15 @@ Here are the all methods and properties of semi-independent component Addon:
         - reload — Pass True if you want to reload module(uses `importlib.reload`)
 
       Import the Addon module
-    - `interface(cls: type[ModuleInterface], *args, **kwargs)`
+    - `interface(cls: type[ModuleInterface] = ModuleInterface, lib_manager: BaseLibManager = None)`
         - cls — subclass of ModuleInterface that will be instantiated
-        - *args, **kwargs — will be passed to ``on_load`` method of the module
+        - lib_manager — Library manager, used to check
+          dependencies before import of module.
+          You must pass it if you use addon as an independent object
 
       Create ModuleInterface instance that can be used to access module
       variables with IDEs suggestions
+      > Note: from version 1.2.19 ModuleInterface does not load module on instantiating. For loading module - call ModuleInterface.load(*args, **kwargs) method that will load module and call ``on_load`` callback  
     - `unload_interface()`
         - *args, **kwargs — will be passed to ``on_unload`` method of the addon
 
