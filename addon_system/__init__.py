@@ -2,4 +2,4 @@ from .addon import Addon, AddonMeta, AddonMetaExtra, ModuleInterface, AddonNames
 from .utils import resolve_runtime
 from .system import AddonSystem
 
-__version__ = "1.2.18"
+__version__ = "1.2.19"
