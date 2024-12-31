@@ -403,52 +403,67 @@ module = addon.module(reload=True)
 
 ### Value injection
 
-> **NOTE**! That is not safe in case of usage ``threading``! Because it replaces builtins
-> (Only for import time)
->
-> Why builtins? Because it will work as it is (without any function calls in addon's module)
-> 
-> **Note**: In future - builtins will no longer be used for this, so i recommend 
-> to use ``addon_system.utils.resolve_runtime``
+Value injection is way to pass some values into addon before it is loaded
 
-You can inject values on module initiation, and use it after (will work only for module that set into metafile)
+There are two ways to inject values into addon:
+1. Builtin injection (deprecated)
+2. Namespace usage
 
-Injection example:
+## Builtin injection
+This type of value injection sets the values into ``builtins`` so the values can be 
+accessed on addon module loading. But this way is not thread safe, because what is set 
+to ``builtins`` is can be accessed not only in module that is loading now, but from anywhere 
+and that may create problems in your program or libraries you use.
+
+But, if you sure in what you doing here is the example:
 
 ```python
 from pathlib import Path
 
-from addon_system import AddonSystem
+from addon_system import Addon
 from addon_system.libraries.pip_manager import PipLibManager
 
-root = Path() / "addons"
-system = AddonSystem(root, PipLibManager())
+addon = Addon(Path("path/to/addon"))
+addon.namespace.name = "value"
 
-addon = system.get_addon_by_id("KuyuGama/SomeAddon")
+addon.module(PipLibManager(), builtin_injection=True)
 
-# "this" name will contain addon instance in addon's module
-addon.namespace.update(dict(this=addon))
-
-module = addon.module()
+# In addon module:
+print(name)
 ```
 
-It creates problem - IDEs doesn't know that I injected the name "this".
+As you see - IDEs will cry about that way of injecting values. Also, this is magical and hard 
+to understand why you're trying to access name that does not exist.
 
-Let's solve this!
+> Also, this type of injection work only on main module that is set in addon.json file
 
-```python
-from addon_system import resolve_runtime, Addon
+## Namespace usage
+This type of value injection uses the special object AddonNamespace that stores 
+all passed values into addon. Values passed through this way can be accessed in all addon's modules.
 
-this = resolve_runtime(Addon)
+Here is the example:
+```python 
+from pathlib import Path
 
-print("Addon module received \"this\" variable with value:", this)
+from addon_system import Addon
+from addon_system.libraries.pip_manager import PipLibManager
+
+addon = Addon(Path("path/to/addon"))
+addon.namespace.name = "value"
+
+addon.module(PipLibManager())
+
+# In addon module:
+from addon_system import AddonNamespace
+
+namespace = AddonNamespace.use()
+
+name = namespace.get("name", str)
+# IDEs will say that "name" variable is of str type
+
+print(name)
+print(namespace.name)  # this is also possible
 ```
-
-> Note:
-> 1. ``resolve_runtime`` also checks requested type with
-> a provided value type and will raise TypeError if it is different
-> 2. ``resolve_runtime`` automatically resolves the name of
-> required variable, but you can also pass it manually, by parameter ``name``
 
 ### Module Interface
 
@@ -489,7 +504,7 @@ system = AddonSystem(root, PipLibManager())
 addon = system.get_addon_by_id("KuyuGama/SomeAddon")
 
 # Value injection can be achieved by using addon.namespace dictionary
-addon.namespace.update(dict(this=addon))
+addon.namespace.update(this=addon)
 
 interface = addon.interface(
     MyInterface,

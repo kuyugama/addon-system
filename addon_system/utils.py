@@ -160,6 +160,17 @@ def string_iterable_contains(iterable: list[str], sub: str, case_sensitive: bool
     return sub in iterable
 
 
+def warn_deprecated(message: str) -> None:
+    """Warn user about deprecation"""
+    warnings.simplefilter("always", DeprecationWarning)  # turn off warning filter
+    warnings.warn(
+        message,
+        category=DeprecationWarning,
+        stacklevel=2,
+    )
+    warnings.simplefilter("default", DeprecationWarning)  # reset warning filter
+
+
 def deprecated(msg: str, version: str):
     """
     Decorator that marks functions as deprecated
@@ -171,13 +182,9 @@ def deprecated(msg: str, version: str):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            warnings.simplefilter("always", DeprecationWarning)  # turn off warning filter
-            warnings.warn(
+            warn_deprecated(
                 "{} is deprecated since {}: {}".format(func.__name__, version, msg),
-                category=DeprecationWarning,
-                stacklevel=2,
             )
-            warnings.simplefilter("default", DeprecationWarning)  # reset warning filter
 
             return func(*args, **kwargs)
 
