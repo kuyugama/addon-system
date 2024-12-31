@@ -1,4 +1,4 @@
-from typing import Union, TypeVar
+from typing import Union, TypeVar, overload
 from abc import abstractmethod
 from pathlib import Path
 import importlib
@@ -130,9 +130,14 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         """
         raise NotImplementedError
 
-    @abstractmethod
+    @overload
+    def interface(self, cls: None = None, lib_manager: BaseLibManager = None) -> ModuleInterface: ...
+
+    @overload
+    def interface(self, cls: type[ModuleInterfaceType], lib_manager: BaseLibManager = None) -> ModuleInterfaceType: ...
+
     def interface(
-        self, cls: type[ModuleInterfaceType], *load_args, **load_kwargs
+        self, cls: type[ModuleInterfaceType] = ModuleInterface, lib_manager: BaseLibManager = None
     ) -> ModuleInterfaceType:
         """
         Creates ModuleInterface for this addon
@@ -144,13 +149,29 @@ class AbstractAddon(utils.ABCFirstParamSingleton):
         Other attempts will return already set interface
 
         :param cls: ModuleInterface subclass
-        :param load_args: positional arguments
-                that will be passed to ``on_load`` module method
-        :param load_kwargs: keyword arguments
-                that will be passed to ``on_load`` module method
+        :param lib_manager: Library manager, that will be used to check addon's dependencies before module load
         :return: module interface instance
         """
-        raise NotImplementedError
+        if not issubclass(cls, ModuleInterface):
+            raise TypeError(f"Invalid ModuleInterface type provided: {cls}")
+
+        # If type of set interface is not equal to provided - raise exception
+        if self._interface is not None and self._interface.module_loaded and type(self._interface) is not cls:
+            raise AddonSystemException(
+                f"Provided {cls} interface, but addon already uses interface of type {self._interface.__class__}"
+            )
+
+        if self._interface is not None and type(self._interface) is cls:
+            return self._interface
+
+        if self._system is None and not lib_manager:
+            raise AddonSystemException(
+                "To load addon module into module interface system or lib_manager must be provided"
+            )
+
+        self._interface = cls(self, lib_manager)
+
+        return self._interface
 
     def unload_interface(self, *args, **kwargs) -> None:
         """
@@ -433,35 +454,6 @@ class Addon(AbstractAddon):
 
         return self._module
 
-    def interface(
-        self, cls: type[ModuleInterfaceType], *load_args, **load_kwargs
-    ) -> ModuleInterfaceType:
-        """
-        Creates ModuleInterface for this addon
-
-        Use addon.module() first if this addon created without AddonSystem,
-        or you need to set values that can be accessed on module evaluation
-
-        **Note**: Only one interface can be set to the addon!
-        Other attempts will return already set interface
-
-        :param cls: ModuleInterface subclass
-        :param load_args: positional arguments
-                that will be passed to ``on_load`` module method
-        :param load_kwargs: keyword arguments
-                that will be passed to ``on_load`` module method
-        :return: module interface instance
-        """
-        if not issubclass(cls, ModuleInterface):
-            raise TypeError(f"Invalid ModuleInterface type provided: {cls}")
-
-        if self._interface is not None and self._interface.module_loaded:
-            return self._interface
-
-        self._interface = cls(self, *load_args, **load_kwargs)
-
-        return self._interface
-
     def storage(self):
         """Get addon's key-value storage"""
         from addon_system.addon.storage import AddonStorage
@@ -570,35 +562,6 @@ if pybaked_installed:
             self._module = module
 
             return self._module
-
-        def interface(
-            self, cls: type[ModuleInterfaceType], *load_args, **load_kwargs
-        ) -> ModuleInterfaceType:
-            """
-            Creates ModuleInterface for this addon
-
-            Use addon.module() first if this addon created without AddonSystem,
-            or you need to set values that can be accessed on module evaluation
-
-            **Note**: Only one interface can be set to the addon!
-            Other attempts will return already set interface
-
-            :param cls: ModuleInterface subclass
-            :param load_args: positional arguments
-                    that will be passed to ``on_load`` module method
-            :param load_kwargs: keyword arguments
-                    that will be passed to ``on_load`` module method
-            :return: module interface instance
-            """
-            if not issubclass(cls, ModuleInterface):
-                raise TypeError(f"Invalid ModuleInterface type provided: {cls}")
-
-            if self._interface is not None and self._interface.module_loaded:
-                return self._interface
-
-            self._interface = cls(self, *load_args, **load_kwargs)
-
-            return self._interface
 
         def storage(self):
             raise AddonInvalid("Baked addons doesn't support storages yet")
