@@ -48,16 +48,17 @@ class AddonSystemStorage(FirstParamSingleton):
 
         stored_addon = self.get_stored_addon(addon.metadata.id)
 
-        if dependency_check_result is None and stored_addon is not None:
-            dependency_check_result = stored_addon.last_dependency_check.satisfied
+        if stored_addon is not None:
+            if dependency_check_result is None:
+                dependency_check_result = stored_addon.last_dependency_check.satisfied
 
-        # Do not rewrite valid cache record
-        if stored_addon is not None and (
-            enabled == stored_addon.enabled
-            and dependency_check_result == stored_addon.last_dependency_check.satisfied
-            and stored_addon.last_dependency_check.is_valid(addon)
-        ):
-            return
+            # Do not rewrite valid cache record
+            if (
+                dependency_check_result == stored_addon.last_dependency_check.satisfied
+                and (enabled is None or enabled == stored_addon.enabled)
+                and stored_addon.last_dependency_check.is_valid(addon)
+            ):
+                return
 
         if enabled is None:
             enabled = False
